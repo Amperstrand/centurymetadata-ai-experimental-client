@@ -1,6 +1,9 @@
 node_modules/
 dist/
 .wrangler/
+test-results/
+test/screenshots/
+test/report/
 test/playwright/screenshots/
 test/playwright/report/
 *.log
