@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { deriveCmKeys, toHex, scanNetwork } from '../lib/centurymetadata';
   import type { CmKeys, SlotPublic, NetworkStats } from '../lib/centurymetadata';
+  import NostrIdentity from './NostrIdentity.svelte';
+  import TourMode from './TourMode.svelte';
 
   const ABANDON_12 = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
@@ -20,8 +22,11 @@
     { id: 'encryption', num: 4, label: 'Encryption', icon: '🔐' },
     { id: 'decryption', num: 5, label: 'Decryption', icon: '🔓' },
     { id: 'security', num: 6, label: 'Security Demos', icon: '🛡️' },
-    { id: 'bundle', num: 7, label: 'The Bundle', icon: '🌐' },
-    { id: 'playground', num: 8, label: 'Try It Yourself', icon: '🎮' },
+    { id: 'whyhybrid', num: 7, label: 'Why Hybrid', icon: '🧬' },
+    { id: 'gotchas', num: 8, label: 'Browser Crypto', icon: '🐞' },
+    { id: 'nodevsbrowser', num: 9, label: 'Node vs Browser', icon: '🔄' },
+    { id: 'bundle', num: 10, label: 'The Bundle', icon: '🌐' },
+    { id: 'playground', num: 11, label: 'Try It Yourself', icon: '🎮' },
   ];
 
   function handleDerive() {
@@ -87,6 +92,8 @@
       This is a proof-of-concept for learning how the system works.
     </p>
   </div>
+
+  <TourMode {sections} onNavigate={scrollToSection} />
 
   <div class="flex gap-6">
     <!-- Sticky section nav -->
@@ -205,6 +212,8 @@
               </p>
             </div>
           </div>
+
+          <NostrIdentity mnemonic={mnemonic} />
 
           <div class="bg-[#0d1117] border border-[#21262d] rounded-lg p-4">
             <p class="text-xs text-[#8b949e] leading-relaxed">
@@ -427,7 +436,55 @@ BIP-39 Seed
         </div>
       </div>
 
-      <!-- Section 7: Bundle System -->
+      <!-- Section 7: Why Hybrid -->
+      <div id="cm-section-whyhybrid" class="scroll-mt-6">
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🧬</span>
+            <h2 class="text-xl font-bold text-[#e6edf3]">Why Hybrid Crypto</h2>
+          </div>
+          <p class="text-sm text-[#8b949e] leading-relaxed">
+            Two layers, two different mathematical assumptions — breaking a record means breaking both, and they fail in different futures.
+          </p>
+          {#await import('./WhyHybrid.svelte')}
+            <div class="flex items-center gap-3 py-8 justify-center"><div class="w-5 h-5 rounded-full border-2 border-[#21262d] border-t-[#58a6ff] animate-spin"></div><span class="text-xs text-[#8b949e]">Loading...</span></div>
+          {:then module}<module.default />{/await}
+        </div>
+      </div>
+
+      <!-- Section 8: Browser Crypto -->
+      <div id="cm-section-gotchas" class="scroll-mt-6">
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🐞</span>
+            <h2 class="text-xl font-bold text-[#e6edf3]">Browser Crypto Gotchas</h2>
+          </div>
+          <p class="text-sm text-[#8b949e] leading-relaxed">
+            Porting centurymetadata from Node to the browser hit real, subtle bugs. Here's the gunzip-on-padded-data bug reproduced live, plus the API translations that made the port work.
+          </p>
+          {#await import('./BrowserGotchas.svelte')}
+            <div class="flex items-center gap-3 py-8 justify-center"><div class="w-5 h-5 rounded-full border-2 border-[#21262d] border-t-[#58a6ff] animate-spin"></div><span class="text-xs text-[#8b949e]">Loading...</span></div>
+          {:then module}<module.default />{/await}
+        </div>
+      </div>
+
+      <!-- Section 9: Node vs Browser -->
+      <div id="cm-section-nodevsbrowser" class="scroll-mt-6">
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🔄</span>
+            <h2 class="text-xl font-bold text-[#e6edf3]">Node vs Browser</h2>
+          </div>
+          <p class="text-sm text-[#8b949e] leading-relaxed">
+            The same operation, side by side: the Node reference (<code class="text-[#a371f7]">test/roundtrip.mjs</code>) vs the browser lib. Byte-identical output, very different APIs.
+          </p>
+          {#await import('./NodeVsBrowser.svelte')}
+            <div class="flex items-center gap-3 py-8 justify-center"><div class="w-5 h-5 rounded-full border-2 border-[#21262d] border-t-[#58a6ff] animate-spin"></div><span class="text-xs text-[#8b949e]">Loading...</span></div>
+          {:then module}<module.default />{/await}
+        </div>
+      </div>
+
+      <!-- Section 10: Bundle System -->
       <div id="cm-section-bundle" class="scroll-mt-6">
         <div class="space-y-4">
           <div class="flex items-center gap-3">
