@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.wrangler/
+test/playwright/screenshots/
+test/playwright/report/
+*.log
+.DS_Store
