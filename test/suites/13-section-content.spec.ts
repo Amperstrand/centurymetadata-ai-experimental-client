@@ -1,19 +1,7 @@
-// Suite 13 — Section content & pedagogy.
-// Asserts that every section renders its expected pedagogical content.
-// Pure static assertions; no network required.
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { waitForApp, toSection, base } from '../helpers';
 
-const BASE = process.env.SERVER || 'http://localhost:4173';
-
-async function toSection(page: Page, id: string) {
-  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector(`#cm-section-${id}`, { timeout: 15000 });
-  await page.evaluate((sid) => {
-    const el = document.getElementById(`cm-section-${sid}`);
-    el?.scrollIntoView({ behavior: 'auto', block: 'start' });
-  }, id);
-  await page.waitForTimeout(800);
-}
+const BASE = base();
 
 test.describe('CenturyMetadata — section content', () => {
   test('CM-20: all 11 sections render their heading', async ({ page }) => {

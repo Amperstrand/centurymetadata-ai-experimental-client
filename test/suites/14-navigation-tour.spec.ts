@@ -2,8 +2,8 @@
 // Covers the sticky section nav (desktop), mobile pill nav, and the
 // end-to-end tour through all 11 sections.
 import { test, expect, type Page } from '@playwright/test';
+import { waitForApp } from '../helpers';
 
-const BASE = process.env.SERVER || 'http://localhost:4173';
 const ALL_SECTION_IDS = [
   'overview', 'keys', 'record', 'encryption', 'decryption',
   'security', 'whyhybrid', 'gotchas', 'nodevsbrowser', 'bundle', 'playground',
@@ -21,15 +21,14 @@ async function isInViewport(page: Page, selector: string): Promise<boolean> {
 
 test.describe('CenturyMetadata — navigation + tour', () => {
   test('CM-30: all 11 desktop nav buttons are present', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await waitForApp(page);
     for (const id of ALL_SECTION_IDS) {
       await expect(page.getByTestId(`cm-nav-${id}`)).toBeVisible();
     }
   });
 
   test('CM-31: clicking each nav button brings its section into view', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1500);
+    await waitForApp(page);
     let failures: string[] = [];
     for (const id of ALL_SECTION_IDS) {
       await page.getByTestId(`cm-nav-${id}`).click();
@@ -41,8 +40,7 @@ test.describe('CenturyMetadata — navigation + tour', () => {
   });
 
   test('CM-32: nav click updates active state to the clicked section', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1500);
+    await waitForApp(page);
     await page.getByTestId('cm-nav-record').click();
     await page.waitForTimeout(1500);
     await page.evaluate(() => window.scrollBy(0, 1));
@@ -60,8 +58,7 @@ test.describe('CenturyMetadata — navigation + tour', () => {
   });
 
   test('CM-33: tour starts at section 1 and advances through all 11', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(800);
+    await waitForApp(page);
     // Start
     await page.getByTestId('cm-tour-start').click();
     await expect(page.getByTestId('cm-tour-banner')).toBeVisible();
@@ -89,8 +86,7 @@ test.describe('CenturyMetadata — navigation + tour', () => {
   });
 
   test('CM-34: tour prev button moves backwards', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(800);
+    await waitForApp(page);
     await page.getByTestId('cm-tour-start').click();
     await page.getByTestId('cm-tour-next').click();
     await page.waitForTimeout(400);
@@ -104,8 +100,7 @@ test.describe('CenturyMetadata — navigation + tour', () => {
   });
 
   test('CM-35: tour × close dismisses the banner', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(800);
+    await waitForApp(page);
     await page.getByTestId('cm-tour-start').click();
     await expect(page.getByTestId('cm-tour-banner')).toBeVisible();
     // The × button is the unlabeled close button next to banner
@@ -118,8 +113,7 @@ test.describe('CenturyMetadata — navigation + tour', () => {
   test('CM-36: mobile viewport shows the bottom pill nav', async ({ page }) => {
     // Force mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(800);
+    await waitForApp(page);
     // The mobile nav container
     const mobileNav = page.locator('.md\\:hidden.fixed.bottom-0');
     await expect(mobileNav).toBeVisible();
@@ -130,8 +124,7 @@ test.describe('CenturyMetadata — navigation + tour', () => {
 
   test('CM-37: mobile nav pill scrolls to its section', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
+    await waitForApp(page);
     const mobileNav = page.locator('.md\\:hidden.fixed.bottom-0');
     const playgroundPill = mobileNav.locator('button').nth(10);
     await playgroundPill.click();

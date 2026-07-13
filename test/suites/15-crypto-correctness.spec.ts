@@ -1,18 +1,7 @@
-// Suite 15 — Crypto correctness.
-// Verifies the live crypto demos produce the right values for the right reasons.
-// All client-side; no network.
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { toSection, base } from '../helpers';
 
-const BASE = process.env.SERVER || 'http://localhost:4173';
-
-async function toSection(page: Page, id: string) {
-  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector(`#cm-section-${id}`, { timeout: 15000 });
-  await page.evaluate((sid) => {
-    document.getElementById(`cm-section-${sid}`)?.scrollIntoView({ behavior: 'auto', block: 'start' });
-  }, id);
-  await page.waitForTimeout(800);
-}
+const BASE = base();
 
 test.describe('CenturyMetadata — crypto correctness', () => {
   test('CM-40: custom mnemonic derives a different reader_id than the default', async ({ page }) => {
