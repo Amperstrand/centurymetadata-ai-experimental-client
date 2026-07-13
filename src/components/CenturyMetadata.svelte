@@ -144,11 +144,11 @@
     </nav>
 
     <!-- Mobile section pills -->
-    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-[#0d1117] border-t border-[#21262d] z-50 flex overflow-x-auto">
+    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-[#0d1117] border-t border-[#21262d] z-50 flex overflow-x-auto" style="min-height: 44px;">
       {#each sections as s}
         <button
           onclick={() => scrollToSection(s.id)}
-          class="flex-shrink-0 px-3 py-3 text-[10px] transition-colors
+          class="flex-shrink-0 px-3 py-3 text-[10px] transition-colors min-h-[44px] flex items-center justify-center
             {activeSection === s.id ? 'text-[#f78166] border-b-2 border-[#f78166]' : 'text-[#8b949e] border-b-2 border-transparent'}"
         >
           {s.icon}<br/>{s.num}

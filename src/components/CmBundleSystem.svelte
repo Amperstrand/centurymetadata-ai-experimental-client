@@ -92,10 +92,12 @@
       <h3 class="text-sm font-semibold text-[#e6edf3]">1024-slot bundle</h3>
       <span class="text-[10px] text-[#484f58]">click an occupied cell to inspect</span>
     </div>
-    <div
-      data-testid="cm-slot-grid"
-      class="grid grid-cols-[repeat(32,minmax(0,1fr))] gap-[2px] bg-[#0d1117] p-2 rounded border border-[#21262d]"
-    >
+    <div class="overflow-x-auto">
+      <div
+        data-testid="cm-slot-grid"
+        class="grid grid-cols-[repeat(32,minmax(10px,1fr))] gap-[2px] bg-[#0d1117] p-2 rounded border border-[#21262d]"
+        style="min-width: 360px;"
+      >
       {#each cells as i (i)}
         {@const slot = occupiedByIndex.get(i) ?? null}
         <button
@@ -108,6 +110,7 @@
             {selectedIndex === i ? 'ring-2 ring-[#f78166] ring-offset-1 ring-offset-[#0d1117]' : ''}"
         ></button>
       {/each}
+      </div>
     </div>
     <div class="flex justify-between mt-2 text-[10px] text-[#484f58] font-mono">
       <span>slot 0</span>
