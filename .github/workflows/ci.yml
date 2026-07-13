@@ -64,9 +64,38 @@ jobs:
 
       - name: Publish test evidence to Nostr/Blossom
         if: always() && github.ref == 'refs/heads/main'
-        uses: Amperstrand/hackathon-tooling/.github/publish-evidence-action@main
-        with:
-          results-dir: test-results/
-          project-tag: centurymetadata-ai-experimental-client
         env:
           PUBLISH_NSEC: ${{ secrets.PUBLISH_NSEC }}
+          PROJECT_TAG: centurymetadata-ai-experimental-client
+        run: |
+          if [ -z "$PUBLISH_NSEC" ]; then echo "No PUBLISH_NSEC secret — skipping evidence publish"; exit 0; fi
+
+          # Install nak (Nostr CLI by fiatjaf — public)
+          NAK_URL=$(curl -sS https://api.github.com/repos/fiatjaf/nak/releases/latest | \
+            python3 -c "import json,sys;[print(a['browser_download_url']) for a in json.load(sys.stdin)['assets'] if 'linux-amd64' in a['name']]" 2>/dev/null | head -1)
+          if [ -n "$NAK_URL" ]; then
+            curl -sL "$NAK_URL" -o /usr/local/bin/nak && chmod +x /usr/local/bin/nak
+          fi
+          nak --help >/dev/null 2>&1 || { echo "nak unavailable — skipping"; exit 0; }
+
+          # Install nostr-publish (Amperstrand — public repo)
+          pip install "git+https://github.com/Amperstrand/nostr-publish-file-metadata-action.git" requests certifi --quiet 2>/dev/null || {
+            echo "nostr-publish install failed — skipping"; exit 0;
+          }
+
+          # Generate summary.json from Playwright report.json
+          node test/generate-summary.mjs test-results/ || true
+
+          # Configure Nostr identity
+          mkdir -p ~/.config/prta
+          echo "$PUBLISH_NSEC" > ~/.config/prta/nsec
+
+          # Publish to Blossom + Nostr relays
+          nostr-publish test-results/ \
+            --nsec-file ~/.config/prta/nsec \
+            --blossom-server https://blossom.psbt.me \
+            --relays wss://relay.cashu.email,wss://relay.damus.io,wss://nos.lol \
+            --branch "${{ github.ref_name }}" \
+            --commit "${{ github.sha }}" \
+            --project "$PROJECT_TAG" \
+            || echo "Publish failed (non-blocking)"
