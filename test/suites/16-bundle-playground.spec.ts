@@ -1,18 +1,7 @@
-// Suite 16 — Bundle system + Playground.
-// Network-dependent. Tests run against the deployed URL (or local wrangler pages dev).
-// Falls back gracefully: if the test API is down, asserts the empty-state UI renders.
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { waitForApp, toSection, base } from '../helpers';
 
-const BASE = process.env.SERVER || 'http://localhost:4173';
-
-async function toSection(page: Page, id: string) {
-  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector(`#cm-section-${id}`, { timeout: 15000 });
-  await page.evaluate((sid) => {
-    document.getElementById(`cm-section-${sid}`)?.scrollIntoView({ behavior: 'auto', block: 'start' });
-  }, id);
-  await page.waitForTimeout(800);
-}
+const BASE = base();
 
 test.describe('CenturyMetadata — bundle + playground (network)', () => {
   test('CM-60: bundle grid renders exactly 1024 cells', async ({ page }) => {

@@ -1,9 +1,7 @@
-// Suite 18 — Edge cases, robustness, and deploy sanity.
-// Verifies the app handles unusual states and that a deployed URL serves
-// the SPA + Pages Function correctly.
 import { test, expect, type Page } from '@playwright/test';
+import { waitForApp, base } from '../helpers';
 
-const BASE = process.env.SERVER || 'http://localhost:4173';
+const BASE = base();
 
 async function collectConsoleErrors(page: Page): Promise<string[]> {
   const errors: string[] = [];
@@ -16,7 +14,7 @@ async function collectConsoleErrors(page: Page): Promise<string[]> {
 
 test.describe('CenturyMetadata — edge cases + robustness', () => {
   test('CM-80: root URL (/) loads successfully (no hash routing needed)', async ({ page }) => {
-    const res = await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const res = await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     expect(res?.status()).toBe(200);
     await expect(page.getByText('EXPERIMENTAL').first()).toBeVisible();
   });
@@ -28,8 +26,8 @@ test.describe('CenturyMetadata — edge cases + robustness', () => {
 
   test('CM-82: no console errors on initial load', async ({ page }) => {
     const errors = await collectConsoleErrors(page);
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(3000);
+    await waitForApp(page);
+    await page.waitForTimeout(1000);
     const realErrors = errors.filter((e) =>
       !e.includes('favicon') &&
       !e.includes('Failed to load resource') &&
@@ -52,8 +50,7 @@ test.describe('CenturyMetadata — edge cases + robustness', () => {
   });
 
   test('CM-84: large mnemonic (24 words) is accepted and derives keys', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(800);
+    await waitForApp(page);
     const mnemonic24 = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art';
     await page.getByTestId('cm-mnemonic').fill(mnemonic24);
     await page.getByTestId('cm-derive').click();
@@ -65,8 +62,7 @@ test.describe('CenturyMetadata — edge cases + robustness', () => {
   });
 
   test('CM-85: changing mnemonic updates all downstream identities live', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
+    await waitForApp(page);
     const initialReaderId = (await page.getByTestId('cm-reader-id').innerText()).trim();
     await page.getByTestId('cm-mnemonic').fill('legal winner thank year wave sausage worth useful legal winner thank yellow');
     await page.getByTestId('cm-derive').click();
@@ -78,8 +74,7 @@ test.describe('CenturyMetadata — edge cases + robustness', () => {
 
   test('CM-86: page works with prefers-reduced-motion (no JS crash)', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1000);
+    await waitForApp(page);
     // Tour button click triggers a scrollIntoView with smooth behavior; reduced-motion should not crash it.
     await page.getByTestId('cm-tour-start').click();
     await expect(page.getByTestId('cm-tour-banner')).toBeVisible();
@@ -91,8 +86,7 @@ test.describe('CenturyMetadata — edge cases + robustness', () => {
 
   test('CM-87: resizing between mobile and desktop preserves state', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(800);
+    await waitForApp(page);
     // Derive a non-default mnemonic
     await page.getByTestId('cm-mnemonic').fill('legal winner thank year wave sausage worth useful legal winner thank yellow');
     await page.getByTestId('cm-derive').click();
