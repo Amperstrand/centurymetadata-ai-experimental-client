@@ -83,7 +83,7 @@
         <span class="text-lg">{step >= 1 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 1: Prepare Data</h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] font-mono space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] font-mono space-y-1 ml-7">
         <div>title = "{title}"</div>
         <div>content = "{content}"</div>
         <div class="text-[#a371f7]">data = title\0content\0 → {title.length + content.length + 2} bytes</div>
@@ -98,7 +98,7 @@
         <span class="text-lg">{step >= 2 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 2: ECDH Key Exchange <span class="text-[10px] text-[#3fb950]">(classical)</span></h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>secp256k1 Diffie-Hellman between writer and reader:</p>
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">writer_priv × reader_secp_pub → shared_point</div>
         <div class="font-mono">writer_pubkey: <span class="text-[#58a6ff]">{writerPubHex.slice(0, 16)}...</span></div>
@@ -119,7 +119,7 @@
         <span class="text-lg">{step >= 3 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 3: ML-KEM-1024 Encapsulation <span class="text-[10px] text-[#a371f7]">(post-quantum)</span></h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>FIPS 203 key encapsulation to reader's ML-KEM public key:</p>
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">ML-KEM.encapsulate(reader_mlkem_pubkey)</div>
         <div class="font-mono text-[#d29922]">→ ciphertext: {debug ? `${debug.mlkemCtLen} bytes` : '...'} (goes in the slot)</div>
@@ -137,7 +137,7 @@
         <span class="text-lg">{step >= 4 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 4: Derive AES Key</h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>Combine both secrets into one AES key:</p>
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">SHA256(ECDH_secret ∥ ML-KEM_secret)</div>
         <p class="text-[#e6edf3] mt-1">This is the <strong>hybrid</strong> part — breaking either ECDH or ML-KEM alone is NOT enough. The attacker needs both.</p>
@@ -155,7 +155,7 @@
         <span class="text-lg">{step >= 5 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 5: AES-256-CTR Encrypt</h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>Encrypt the gzip'd, padded data:</p>
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">AES-256-CTR(key, padded_data) → ciphertext</div>
         <div class="font-mono text-[#d29922]">→ {debug ? `${debug.encryptedLen} bytes` : '6487 bytes'} (goes in the AES field of the slot)</div>
@@ -168,7 +168,7 @@
         <span class="text-lg">{step >= 6 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 6: BIP-340 Schnorr Signature</h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>Sign the record so readers can verify authorship:</p>
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">Schnorr.sign(taggedHash(TAG, body), writer_priv)</div>
         {#if debug}

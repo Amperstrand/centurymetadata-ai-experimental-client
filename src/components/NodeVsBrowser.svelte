@@ -39,7 +39,7 @@
       <div class="text-[10px] text-[#58a6ff] font-mono mb-1">AES-256-CTR</div>
       <div class="overflow-x-auto rounded-md border border-[#21262d]">
         <table class="w-full text-[10px] font-mono">
-          <thead><tr class="bg-[#0d1117] text-[#484f58]"><th class="text-left p-2">step</th><th class="text-left p-2 text-[#f85149]">Node</th><th class="text-left p-2 text-[#3fb950]">browser (Web Crypto)</th></tr></thead>
+          <thead><tr class="bg-[#0d1117] text-[#484f58]"><th class="text-left p-2">step</th><th class="text-left p-2 text-[#f85149]">Node (test/roundtrip.mjs)</th><th class="text-left p-2 text-[#3fb950]">browser (lib/centurymetadata.ts)</th></tr></thead>
           <tbody>
             {#each aesRows as r}
               <tr class="border-t border-[#21262d]"><td class="p-2 text-[#8b949e]">{r.label}</td><td class="p-2 text-[#e6edf3] break-all">{r.node}</td><td class="p-2 text-[#e6edf3] break-all">{r.browser}</td></tr>

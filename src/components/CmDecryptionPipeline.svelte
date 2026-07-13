@@ -77,7 +77,7 @@
         <span class="text-lg">{step >= 1 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 1: Verify BIP-340 signature</h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>The slot carries a 64-byte Schnorr signature over the full content. Verify against the writer's x-only pubkey (embedded in the slot).</p>
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">schnorr.verify(sig, taggedHash(TAG, content), writer_xonly)</div>
         {#if result}
@@ -94,7 +94,7 @@
         <span class="text-lg">{step >= 2 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 2: ECDH <span class="text-[10px] text-[#3fb950]">(classical)</span></h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">SHA256(x_coord(reader_secp_priv × writer_pub))</div>
         <div class="font-mono">writer_pub (from slot): <span class="text-[#58a6ff]">…{readerSecpPubHex.slice(-16)}</span></div>
         {#if result}
@@ -109,7 +109,7 @@
         <span class="text-lg">{step >= 3 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 3: ML-KEM-1024 decapsulate <span class="text-[10px] text-[#a371f7]">(post-quantum)</span></h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>Decapsulate the 1568-byte ciphertext with the reader's ML-KEM private key → post-quantum shared secret.</p>
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">ML-KEM.decapsulate(MLKEM_CT, reader_mlkem_priv)</div>
         <div class="font-mono text-[#a371f7]">→ 32-byte post-quantum secret (combined into the AES key next)</div>
@@ -122,7 +122,7 @@
         <span class="text-lg">{step >= 4 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 4: Derive AES key</h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">SHA256(ECDH_secret ∥ ML-KEM_secret)</div>
         <p>Same hybrid construction as encryption — both secrets are required.</p>
         {#if result}
@@ -137,7 +137,7 @@
         <span class="text-lg">{step >= 5 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 5: AES-256-CTR decrypt</h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">AES-CTR.decrypt(aes_key, AES_field) → padded gzip stream</div>
         {#if result}
           <div class="font-mono text-[#d29922] bg-[#0d1117] rounded px-2 py-1">gzip magic = {result.debug.decryptedGzipMagic} · {result.debug.decryptedLen} bytes</div>
@@ -151,7 +151,7 @@
         <span class="text-lg">{step >= 6 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 6: Gunzip + parse title\0content pairs</h4>
       </div>
-      <div class="text-[10px] text-[#8b949e] space-y-1 ml-7">
+      <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>Inflate the DEFLATE stream (ignoring zero padding), then split on NUL bytes into field pairs.</p>
         {#if result}
           <div class="font-mono text-[#3fb950] bg-[#0d1117] rounded px-2 py-1">decompressed {result.debug.decompressedLen} bytes</div>
