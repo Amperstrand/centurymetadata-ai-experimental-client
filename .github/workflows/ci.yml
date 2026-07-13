@@ -97,5 +97,4 @@ jobs:
             --relays wss://relay.cashu.email,wss://relay.damus.io,wss://nos.lol \
             --branch "${{ github.ref_name }}" \
             --commit "${{ github.sha }}" \
-            --project "$PROJECT_TAG" \
             || echo "Publish failed (non-blocking)"
