@@ -6,7 +6,11 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'test/report' }]],
+  reporter: [
+    ['list'],
+    ['json', { outputFile: 'test-results/report.json' }],
+    ['html', { open: 'never', outputFolder: 'test/report' }],
+  ],
   timeout: 30000,
   expect: { timeout: 10000 },
   use: {

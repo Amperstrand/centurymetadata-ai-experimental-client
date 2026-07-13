@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start preview server (wrangler pages dev)
+        run: |
+          npx wrangler pages dev dist --port 8788 > /tmp/wrangler.log 2>&1 &
+          echo $! > /tmp/wrangler.pid
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8788 >/dev/null 2>&1; then
+              echo "Server ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server failed to start — wrangler log:"
+          cat /tmp/wrangler.log
+          exit 1
+
+      - name: Run tests
+        run: SERVER=http://localhost:8788 npx playwright test
+        env:
+          CI: true
+
+      - name: Stop preview server
+        if: always()
+        run: kill $(cat /tmp/wrangler.pid) 2>/dev/null || true
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-results
+          path: |
+            test-results/
+            test/screenshots/
+            test/report/
+          retention-days: 14
+
+      - name: Publish test evidence to Nostr/Blossom
+        if: always() && github.ref == 'refs/heads/main'
+        uses: Amperstrand/hackathon-tooling/.github/publish-evidence-action@main
+        with:
+          results-dir: test-results/
+          project-tag: centurymetadata-ai-experimental-client
+        env:
+          PUBLISH_NSEC: ${{ secrets.PUBLISH_NSEC }}
