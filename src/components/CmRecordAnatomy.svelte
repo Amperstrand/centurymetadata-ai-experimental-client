@@ -111,6 +111,7 @@
     <div class="space-y-1">
       {#each fields as f}
         <button
+          data-testid="cm-field-list-{f.id}"
           onclick={() => selectedField = f.id}
           class="w-full flex items-center gap-3 px-3 py-2 rounded-md text-xs transition-colors text-left
             {selectedField === f.id ? 'bg-[#21262d]' : 'hover:bg-[#1c2128]'}"

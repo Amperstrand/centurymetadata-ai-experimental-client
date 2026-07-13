@@ -14,6 +14,18 @@
   let networkSlots = $state<SlotPublic[]>([]);
   let networkStats = $state<NetworkStats | null>(null);
   let scanning = $state(false);
+  let copiedReaderId = $state(false);
+
+  async function copyReaderId() {
+    if (!keys) return;
+    try {
+      await navigator.clipboard.writeText(toHex(keys.readerId));
+      copiedReaderId = true;
+      setTimeout(() => (copiedReaderId = false), 1500);
+    } catch {
+      // clipboard API may be unavailable (older browsers, insecure context)
+    }
+  }
 
   const sections = [
     { id: 'overview', num: 1, label: 'The Big Picture', icon: '🌍' },
@@ -59,16 +71,21 @@
   }
 
   function handleScroll() {
+    const viewportCenter = window.innerHeight / 2;
+    let bestId: string | null = null;
+    let bestDistance = Infinity;
     for (const s of sections) {
       const el = document.getElementById(`cm-section-${s.id}`);
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        if (rect.top <= 120 && rect.bottom >= 120) {
-          activeSection = s.id;
-          break;
-        }
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.top > viewportCenter || rect.bottom < viewportCenter) continue;
+      const distance = Math.abs(viewportCenter - (rect.top + rect.height / 2));
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestId = s.id;
       }
     }
+    if (bestId) activeSection = bestId;
   }
 
   onMount(() => {
@@ -113,8 +130,15 @@
           </button>
         {/each}
         <div class="pt-4 px-3 border-t border-[#21262d] mt-4">
-          <div class="text-[10px] text-[#484f58] mb-1">your reader_id</div>
-          <code class="text-[10px] text-[#a371f7] font-mono break-all">{readerIdHex.slice(0, 32)}...</code>
+          <div class="text-[11px] text-[#8b949e] mb-1">your reader_id (click to copy)</div>
+          <button
+            data-testid="cm-sidebar-reader-id"
+            onclick={copyReaderId}
+            title="Copy full reader_id"
+            class="text-[11px] text-[#a371f7] hover:text-[#bc8cff] font-mono break-all text-left w-full"
+          >
+            {copiedReaderId ? '✓ copied!' : `${readerIdHex.slice(0, 32)}…`}
+          </button>
         </div>
       </div>
     </nav>
@@ -141,7 +165,7 @@
             <span class="text-2xl">🌍</span>
             <h2 class="text-xl font-bold text-[#e6edf3]">The Big Picture</h2>
           </div>
-          <p class="text-sm text-[#8b949e] leading-relaxed">
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
             <a href="https://centurymetadata.org" target="_blank" rel="noopener" class="text-[#58a6ff] hover:underline">centurymetadata</a>
             is a post-quantum key-value store designed by
             <a href="https://github.com/rustyrussell" target="_blank" rel="noopener" class="text-[#58a6ff] hover:underline">Rusty Russell</a>
@@ -151,7 +175,7 @@
 
           <!-- Visual system diagram -->
           <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-6 my-4">
-            <pre class="text-[10px] sm:text-xs text-[#8b949e] font-mono leading-relaxed overflow-x-auto text-center">
+            <pre class="text-[10px] sm:text-xs text-[#b1bac4] font-mono leading-relaxed overflow-x-auto text-center">
 ┌─────────────────────────────────────────────────────────────────┐
 │                    BIP-39 SEED PHRASE                            │
 │          "abandon abandon abandon ... about"                     │
@@ -232,7 +256,7 @@
             <span class="text-2xl">🔑</span>
             <h2 class="text-xl font-bold text-[#e6edf3]">Keys & Identity</h2>
           </div>
-          <p class="text-sm text-[#8b949e] leading-relaxed">
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
             One BIP-39 seed phrase creates <strong class="text-[#e6edf3]">two independent identity systems</strong>:
             your Nostr identity (for Blossom auth) and your centurymetadata identity (for encrypted records).
             They share a seed but are cryptographically independent.
@@ -240,8 +264,9 @@
 
           <!-- Mnemonic input -->
           <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
-            <label class="text-xs text-[#8b949e] font-medium">BIP-39 Mnemonic (your seed phrase)</label>
+            <label for="cm-mnemonic-input" class="text-xs text-[#8b949e] font-medium block">BIP-39 Mnemonic (your seed phrase)</label>
             <textarea
+              id="cm-mnemonic-input"
               bind:value={mnemonic}
               data-testid="cm-mnemonic"
               placeholder="Enter 12 or 24 words..."
@@ -289,7 +314,7 @@ BIP-39 Seed
               <div class="space-y-2 text-xs font-mono">
                 <div>
                   <div class="text-[10px] text-[#484f58] mb-0.5">reader_id (your address in the bundle)</div>
-                  <div class="text-[#a371f7] break-all bg-[#0d1117] rounded px-2 py-1">{readerIdHex}</div>
+                  <div data-testid="cm-reader-id" class="text-[#a371f7] break-all bg-[#0d1117] rounded px-2 py-1">{readerIdHex}</div>
                   <div class="text-[10px] text-[#484f58] mt-0.5">= SHA256(reader_secp_pubkey ∥ reader_mlkem_pubkey)</div>
                 </div>
                 <div>
@@ -329,7 +354,7 @@ BIP-39 Seed
             <span class="text-2xl">📦</span>
             <h2 class="text-xl font-bold text-[#e6edf3]">Record Anatomy</h2>
           </div>
-          <p class="text-sm text-[#8b949e] leading-relaxed">
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
             Every record in centurymetadata is exactly <strong class="text-[#e6edf3]">8192 bytes</strong>.
             Some fields are visible to everyone (cleartext); others are encrypted.
             Click each field below to learn what it does.
@@ -353,7 +378,7 @@ BIP-39 Seed
             <span class="text-2xl">🔐</span>
             <h2 class="text-xl font-bold text-[#e6edf3]">How Encryption Works</h2>
           </div>
-          <p class="text-sm text-[#8b949e] leading-relaxed">
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
             centurymetadata uses <strong class="text-[#e6edf3]">hybrid encryption</strong>: classical ECDH
             (broken by quantum computers) combined with ML-KEM-1024 (resistant to quantum computers).
             An attacker must break <strong class="text-[#e6edf3]">both</strong> systems to decrypt a record.
@@ -384,7 +409,7 @@ BIP-39 Seed
             <span class="text-2xl">🔓</span>
             <h2 class="text-xl font-bold text-[#e6edf3]">How Decryption Works</h2>
           </div>
-          <p class="text-sm text-[#8b949e] leading-relaxed">
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
             Encryption is only half the story — here's how the reader recovers the plaintext using their private keys.
             Every step reverses its encryption counterpart; the ECDH and ML-KEM secrets only materialize for the right reader.
           </p>
@@ -413,7 +438,7 @@ BIP-39 Seed
             <span class="text-2xl">🛡️</span>
             <h2 class="text-xl font-bold text-[#e6edf3]">Security Demos</h2>
           </div>
-          <p class="text-sm text-[#8b949e] leading-relaxed">
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
             Two interactive proofs of centurymetadata's security properties: <strong class="text-[#e6edf3]">tamper detection</strong>
             (the signature catches any alteration) and <strong class="text-[#e6edf3]">wrong-reader confidentiality</strong>
             (a record not addressed to you is unfindable and undecryptable).
@@ -443,7 +468,7 @@ BIP-39 Seed
             <span class="text-2xl">🧬</span>
             <h2 class="text-xl font-bold text-[#e6edf3]">Why Hybrid Crypto</h2>
           </div>
-          <p class="text-sm text-[#8b949e] leading-relaxed">
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
             Two layers, two different mathematical assumptions — breaking a record means breaking both, and they fail in different futures.
           </p>
           {#await import('./WhyHybrid.svelte')}
@@ -459,7 +484,7 @@ BIP-39 Seed
             <span class="text-2xl">🐞</span>
             <h2 class="text-xl font-bold text-[#e6edf3]">Browser Crypto Gotchas</h2>
           </div>
-          <p class="text-sm text-[#8b949e] leading-relaxed">
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
             Porting centurymetadata from Node to the browser hit real, subtle bugs. Here's the gunzip-on-padded-data bug reproduced live, plus the API translations that made the port work.
           </p>
           {#await import('./BrowserGotchas.svelte')}
@@ -475,7 +500,7 @@ BIP-39 Seed
             <span class="text-2xl">🔄</span>
             <h2 class="text-xl font-bold text-[#e6edf3]">Node vs Browser</h2>
           </div>
-          <p class="text-sm text-[#8b949e] leading-relaxed">
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
             The same operation, side by side: the Node reference (<code class="text-[#a371f7]">test/roundtrip.mjs</code>) vs the browser lib. Byte-identical output, very different APIs.
           </p>
           {#await import('./NodeVsBrowser.svelte')}
@@ -491,7 +516,7 @@ BIP-39 Seed
             <span class="text-2xl">🌐</span>
             <h2 class="text-xl font-bold text-[#e6edf3]">The Bundle System</h2>
           </div>
-          <p class="text-sm text-[#8b949e] leading-relaxed">
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
             Records aren't stored individually. Instead, <strong class="text-[#e6edf3]">1024 slots are XOR-masked</strong>
             into a single 8 MB bundle. Everyone downloads the same bundle; only your reader_id lets you find
             and decrypt your records within it. This provides <strong class="text-[#e6edf3]">privacy in numbers</strong> —
@@ -516,7 +541,7 @@ BIP-39 Seed
             <span class="text-2xl">🎮</span>
             <h2 class="text-xl font-bold text-[#e6edf3]">Try It Yourself</h2>
           </div>
-          <p class="text-sm text-[#8b949e] leading-relaxed">
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
             Write a real encrypted record to the centurymetadata test API, then fetch it back and watch it decrypt.
             Your data is encrypted in your browser before upload — the server never sees the plaintext.
           </p>

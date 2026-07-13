@@ -74,18 +74,22 @@
   <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
     <h3 class="text-sm font-semibold text-[#e6edf3]">Write an encrypted record</h3>
     <div class="grid sm:grid-cols-2 gap-3">
-      <input
-        bind:value={title}
-        data-testid="cm-write-title"
-        placeholder="title"
-        class="bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
-      />
-      <input
-        bind:value={content}
-        data-testid="cm-write-content"
-        placeholder="content"
-        class="bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
-      />
+      <label class="block">
+        <span class="text-[10px] text-[#8b949e] font-medium block mb-1">title</span>
+        <input
+          bind:value={title}
+          data-testid="cm-write-title"
+          class="w-full bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+        />
+      </label>
+      <label class="block">
+        <span class="text-[10px] text-[#8b949e] font-medium block mb-1">content</span>
+        <input
+          bind:value={content}
+          data-testid="cm-write-content"
+          class="w-full bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+        />
+      </label>
     </div>
     <button
       onclick={handleWrite}
