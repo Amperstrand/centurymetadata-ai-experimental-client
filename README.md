@@ -2,6 +2,8 @@
 
 An interactive learning client for [centurymetadata](https://centurymetadata.org) — the post-quantum key-value store by [Rusty Russell](https://github.com/rustyrussell). **Experimental / proof-of-concept.** Not production, not affiliated with upstream.
 
+> 🌐 **Live demo:** <https://centurymetadata-ai-experimental-client.pages.dev> · 📁 **Source:** <https://github.com/Amperstrand/centurymetadata-ai-experimental-client>
+
 > Extracted from [blossomflare](https://github.com/Amperstrand/blossomflare). The git history of these files lives there; this repo starts a focused experimental client whose only goal is to **explore, learn, and demo** centurymetadata.
 
 ## What it shows
