@@ -198,12 +198,12 @@ export interface CmKeys {
   writerMlkemSecretKey: Uint8Array;
 }
 
-export function deriveCmKeys(mnemonic: string): CmKeys {
-  const seed = mnemonicToSeedSync(mnemonic);
+export function deriveCmKeys(mnemonic: string, n: number = 0, passphrase: string = ''): CmKeys {
+  const seed = mnemonicToSeedSync(mnemonic, passphrase);
   const hdRoot = HDKey.fromMasterSeed(seed);
 
   const purpose = hdRoot.deriveChild((0x80000000 + CM_PURPOSE) >>> 0);
-  const coin = purpose.deriveChild((0x80000000 + 0) >>> 0);
+  const coin = purpose.deriveChild((0x80000000 + n) >>> 0);
   const writerChild = coin.deriveChild((0x80000000 + 0) >>> 0);
   const readerSecpChild = coin.deriveChild((0x80000000 + 1) >>> 0);
   const writerMlkemChild = coin.deriveChild((0x80000000 + 2) >>> 0);
@@ -445,6 +445,71 @@ export async function fetchSlots(readerId: Uint8Array): Promise<Uint8Array[]> {
   }
 
   return foundSlots;
+}
+
+export function generateXorPirMasks(targetBit: number): { maskA: Uint8Array; maskB: Uint8Array } {
+  const maskA = crypto.getRandomValues(new Uint8Array(128));
+  maskA[Math.floor(targetBit / 8)] |= 1 << (targetBit % 8);
+  const maskB = new Uint8Array(maskA);
+  maskB[Math.floor(targetBit / 8)] ^= 1 << (targetBit % 8);
+  return { maskA, maskB };
+}
+
+export function xorBundles(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const len = Math.min(a.length, b.length);
+  const result = new Uint8Array(len);
+  for (let i = 0; i < len; i++) result[i] = a[i] ^ b[i];
+  return result;
+}
+
+export async function fetchSlotPrivate(
+  serverBaseA: string,
+  serverBaseB: string,
+  readerId: Uint8Array,
+): Promise<Uint8Array | null> {
+  const listRes = await fetch(`${serverBaseA}/listbundles`);
+  const bundles = await listRes.json() as { directory: string; index: number }[];
+
+  for (const bundle of bundles) {
+    const singleMask = new Uint8Array(128);
+    singleMask[Math.floor(bundle.index / 8)] |= 1 << (bundle.index % 8);
+    const probeRes = await fetch(`${serverBaseA}/fetchxor/${bundle.directory}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: singleMask,
+    });
+    const probeData = new Uint8Array(await probeRes.arrayBuffer());
+
+    let slotIdx = -1;
+    for (let i = 0; i + SLOT_SIZE <= probeData.length; i += SLOT_SIZE) {
+      const slotRid = probeData.subarray(i + READER_ID_OFFSET, i + READER_ID_OFFSET + 32);
+      let match = true;
+      for (let j = 0; j < 32; j++) {
+        if (slotRid[j] !== readerId[j]) { match = false; break; }
+      }
+      if (match) { slotIdx = i / SLOT_SIZE; break; }
+    }
+    if (slotIdx < 0) continue;
+
+    if (serverBaseA === serverBaseB) return probeData.subarray(slotIdx * SLOT_SIZE, (slotIdx + 1) * SLOT_SIZE);
+
+    const globalBit = bundle.index * 1024 + slotIdx;
+    const { maskA, maskB } = generateXorPirMasks(globalBit % 1024);
+
+    const [resA, resB] = await Promise.all([
+      fetch(`${serverBaseA}/fetchxor/${bundle.directory}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: maskA,
+      }),
+      fetch(`${serverBaseB}/fetchxor/${bundle.directory}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: maskB,
+      }),
+    ]);
+    const dataA = new Uint8Array(await resA.arrayBuffer());
+    const dataB = new Uint8Array(await resB.arrayBuffer());
+    const xored = xorBundles(dataA, dataB);
+    return xored.subarray(slotIdx * SLOT_SIZE, (slotIdx + 1) * SLOT_SIZE);
+  }
+  return null;
 }
 
 /**

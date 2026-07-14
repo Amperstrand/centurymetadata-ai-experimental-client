@@ -190,5 +190,125 @@ test('N=0 and N=1 derive different reader_ids', () => {
   assert.notEqual(toHex(r0.privateKey), toHex(r1.privateKey));
 });
 
+const EXPECTED_N1 = {
+  WRITER_SECP_PRIVKEY: 'c5603070f7ed0d62af1067e3cc227f9b5704a08034694b01f3fdec84b2b61057',
+  WRITER_PUBKEY: '02f279bb1198f5cc528945850490494c376aa9319a5bd5265aa6c7d3029577c0a4',
+  READER_SECP_PRIVKEY: '6698491795775a4a0a246335c6de8f1fbb5311fe8c7cd77e672ae9f2f8d6d993',
+  READER_SECP_PUBKEY: '020503e8ba4159391db3603bcd25defd4a8e2537970ee5a5c6c583ceaa70a95d6c',
+  READER_MLKEM_SEED_D: 'b46b7703cc55030013e9646d83853986dcb6f04d1e2ab1b060360c5ccbe825f3',
+  READER_ID: '5871d8cff6a8bb1170d3c52e12cd54118ffa007eeafc89d38c71832e0b834d0c',
+};
+
+console.log('\n=== SLOT N=1 DERIVATION ===\n');
+
+test('N=1 writer secp privkey matches test vector', () => {
+  const purpose = hd.deriveChild(harden(CM_PURPOSE));
+  const coin = purpose.deriveChild(harden(1));
+  const writer = coin.deriveChild(harden(0));
+  assert.equal(toHex(writer.privateKey), EXPECTED_N1.WRITER_SECP_PRIVKEY);
+});
+
+test('N=1 writer pubkey matches test vector', () => {
+  const purpose = hd.deriveChild(harden(CM_PURPOSE));
+  const coin = purpose.deriveChild(harden(1));
+  const writer = coin.deriveChild(harden(0));
+  const pub = secp256k1.getPublicKey(writer.privateKey, true);
+  assert.equal(toHex(pub), EXPECTED_N1.WRITER_PUBKEY);
+});
+
+test('N=1 reader secp privkey matches test vector', () => {
+  const purpose = hd.deriveChild(harden(CM_PURPOSE));
+  const coin = purpose.deriveChild(harden(1));
+  const reader = coin.deriveChild(harden(1));
+  assert.equal(toHex(reader.privateKey), EXPECTED_N1.READER_SECP_PRIVKEY);
+});
+
+test('N=1 reader ML-KEM seed D matches test vector', () => {
+  const purpose = hd.deriveChild(harden(CM_PURPOSE));
+  const coin = purpose.deriveChild(harden(1));
+  const mlkem = coin.deriveChild(harden(3));
+  assert.equal(toHex(mlkem.privateKey), EXPECTED_N1.READER_MLKEM_SEED_D);
+});
+
+test('N=1 reader_id matches test vector', () => {
+  const purpose = hd.deriveChild(harden(CM_PURPOSE));
+  const coin = purpose.deriveChild(harden(1));
+  const readerSecp = coin.deriveChild(harden(1));
+  const mlkemSeed = coin.deriveChild(harden(3));
+  const readerSecpPub = secp256k1.getPublicKey(readerSecp.privateKey, true);
+  const k = ml_kem1024.keygen(concat(mlkemSeed.privateKey, taggedHash(MLKEM_Z_TAG, mlkemSeed.privateKey)));
+  const readerId = sha256(concat(new Uint8Array(readerSecpPub), new Uint8Array(k.publicKey)));
+  assert.equal(toHex(readerId), EXPECTED_N1.READER_ID);
+});
+
+test('N=0 and N=1 reader_ids are different', () => {
+  assert.notEqual(EXPECTED.READER_ID, EXPECTED_N1.READER_ID);
+});
+
+console.log('\n=== BIP-39 PASSPHRASE ===\n');
+
+test('Different passphrase produces different seed', () => {
+  const seed1 = mnemonicToSeedSync(MNEMONIC, '');
+  const seed2 = mnemonicToSeedSync(MNEMONIC, 'extra-passphrase');
+  assert.notEqual(toHex(seed1), toHex(seed2));
+});
+
+test('Different passphrase produces different writer key', () => {
+  const s1 = mnemonicToSeedSync(MNEMONIC, '');
+  const s2 = mnemonicToSeedSync(MNEMONIC, 'secret');
+  const h1 = HDKey.fromMasterSeed(s1);
+  const h2 = HDKey.fromMasterSeed(s2);
+  const w1 = h1.deriveChild(harden(CM_PURPOSE)).deriveChild(harden(0)).deriveChild(harden(0));
+  const w2 = h2.deriveChild(harden(CM_PURPOSE)).deriveChild(harden(0)).deriveChild(harden(0));
+  assert.notEqual(toHex(w1.privateKey), toHex(w2.privateKey));
+});
+
+console.log('\n=== XOR-PIR LOGIC ===\n');
+
+test('XOR-PIR masks are complementary at target bit', () => {
+  const targetBit = 42;
+  const maskA = new Uint8Array(128);
+  crypto.getRandomValues(maskA);
+  maskA[Math.floor(targetBit / 8)] |= 1 << (targetBit % 8);
+  const maskB = new Uint8Array(maskA);
+  maskB[Math.floor(targetBit / 8)] ^= 1 << (targetBit % 8);
+  const bitA = (maskA[Math.floor(targetBit / 8)] >> (targetBit % 8)) & 1;
+  const bitB = (maskB[Math.floor(targetBit / 8)] >> (targetBit % 8)) & 1;
+  assert.equal(bitA, 1, 'maskA should have target bit SET');
+  assert.equal(bitB, 0, 'maskB should have target bit CLEARED');
+  for (let i = 0; i < 128 * 8; i++) {
+    if (i === targetBit) continue;
+    const a = (maskA[Math.floor(i / 8)] >> (i % 8)) & 1;
+    const b = (maskB[Math.floor(i / 8)] >> (i % 8)) & 1;
+    assert.equal(a, b, `non-target bit ${i} should be identical in both masks`);
+  }
+});
+
+test('XOR of identical data cancels to zeros', () => {
+  const data = new Uint8Array(8192);
+  for (let i = 0; i < 8192; i++) data[i] = (i * 37) & 0xff;
+  const xored = new Uint8Array(8192);
+  for (let i = 0; i < 8192; i++) xored[i] = data[i] ^ data[i];
+  let allZero = true;
+  for (const b of xored) if (b !== 0) { allZero = false; break; }
+  assert.ok(allZero, 'XOR of identical data should be all zeros');
+});
+
+test('XOR-PIR recovers target slot from two responses', () => {
+  const targetSlot = new Uint8Array(8192);
+  for (let i = 0; i < 8192; i++) targetSlot[i] = (i * 13) & 0xff;
+  const decoySlot = new Uint8Array(8192);
+  for (let i = 0; i < 8192; i++) decoySlot[i] = (i * 7) & 0xff;
+
+  const responseA = new Uint8Array(8192);
+  for (let i = 0; i < 8192; i++) responseA[i] = targetSlot[i] ^ decoySlot[i];
+  const responseB = new Uint8Array(decoySlot);
+
+  const recovered = new Uint8Array(8192);
+  for (let i = 0; i < 8192; i++) recovered[i] = responseA[i] ^ responseB[i];
+
+  assert.deepEqual(Array.from(recovered), Array.from(targetSlot));
+});
+
 console.log(`\n${passed} passed, ${failed} failed, ${passed + failed} total`);
 process.exit(failed > 0 ? 1 : 0);
