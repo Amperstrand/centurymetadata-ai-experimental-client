@@ -9,6 +9,13 @@
   let debug = $state<EncodeDebug | null>(null);
   let running = $state(false);
   let step = $state(0);
+  let showCode = $state<Set<number>>(new Set());
+
+  function toggleCode(n: number) {
+    const s = new Set(showCode);
+    if (s.has(n)) s.delete(n); else s.add(n);
+    showCode = s;
+  }
 
   async function runEncryption() {
     running = true;
@@ -37,13 +44,60 @@
   let writerPubHex = $derived(toHex(keys.writerPubKey));
   let readerSecpPubHex = $derived(toHex(keys.readerSecpPubKey));
 
-  const steps = [
-    { num: 1, title: 'Prepare Data', icon: '📝' },
-    { num: 2, title: 'ECDH Key Exchange', icon: '🤝' },
-    { num: 3, title: 'ML-KEM Encapsulation', icon: '🛡️' },
-    { num: 4, title: 'Derive AES Key', icon: '🔑' },
-    { num: 5, title: 'AES-256-CTR Encrypt', icon: '🔒' },
-    { num: 6, title: 'BIP-340 Schnorr Sign', icon: '✍️' },
+  const stepMeta = [
+    { lib: 'fflate + TextEncoder', func: 'gzipSync(data, {level:9}) + pad to 6487',
+      code: `// src/lib/centurymetadata.ts → encodeRecord()
+const encoder = new TextEncoder();
+const parts = [];
+for (const [type, name, contents] of triples) {
+  parts.push(encoder.encode(type), [0], encoder.encode(name), [0], encoder.encode(contents), [0]);
+}
+const rawData = concatBytes(...parts);
+const compressed = gzipSync(rawData, { level: 9 });
+compressed[4]=0; compressed[5]=0; compressed[6]=0; compressed[7]=0;
+if (compressed.length > 9) compressed[9] = 0xff;
+const padded = new Uint8Array(6487);
+padded.set(compressed);` },
+    { lib: '@noble/curves', func: 'secp256k1 ECDH → sha256(x)',
+      code: `// src/lib/centurymetadata.ts → computeEcdh()
+const sharedPoint = secp256k1.Point
+  .fromBytes(readerSecpPubKey)
+  .multiply(bytesToNumberBE(writerPrivKey));
+const x = sharedPoint.toBytes(true).subarray(1, 33);
+return sha256(x);
+// → 32-byte classical shared secret` },
+    { lib: '@noble/post-quantum', func: 'ml_kem1024.encapsulate(pubkey)',
+      code: `// @noble/post-quantum — FIPS 203 ML-KEM-1024
+const encap = ml_kem1024.encapsulate(keys.mlkemPublicKey);
+const mlkemCt = new Uint8Array(encap.cipherText);    // 1568 bytes → goes in slot
+const mlkemSecret = new Uint8Array(encap.sharedSecret); // 32 bytes → AES key input` },
+    { lib: '@noble/hashes', func: 'sha256(ecdh ∥ mlkem)',
+      code: `// Hybrid key derivation — both secrets required
+const aesKey = sha256(concatBytes(ecdhSecret, mlkemSecret));
+// → 32-byte AES-256 key
+// Breaking ECDH alone is useless. Breaking ML-KEM alone is useless.
+// Attacker must break BOTH to recover this key.` },
+    { lib: 'Web Crypto API', func: 'crypto.subtle.encrypt(AES-CTR)',
+      code: `// Browser-native AES-256-CTR via Web Crypto
+const cryptoKey = await crypto.subtle.importKey(
+  'raw', aesKey, { name: 'AES-CTR' }, false, ['encrypt']
+);
+const encrypted = await crypto.subtle.encrypt(
+  { name: 'AES-CTR', counter: new Uint8Array(16), length: 128 },
+  cryptoKey, padded
+);
+// counter starts at 0, nonce is all-zeros
+// → 6487 bytes of AES ciphertext → goes in slot` },
+    { lib: '@noble/curves', func: 'schnorr.sign(taggedHash, priv)',
+      code: `// BIP-340 Schnorr signature over the record content
+const contentBytes = concatBytes(
+  writerPubKey, readerId, genBytes, mlkemCt, encrypted
+);
+const prehash = taggedHash('centurymetadata v1', contentBytes);
+const sig = schnorr.sign(prehash, writerPrivKey);
+// → 64-byte signature → goes in slot
+// Anyone can verify this WITHOUT private keys:
+//   schnorr.verify(sig, prehash, writerXOnly)` },
   ];
 </script>
 
@@ -82,14 +136,17 @@
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 1 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 1: Prepare Data</h4>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[0].lib}</span>
+        <button onclick={() => toggleCode(1)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(1) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] font-mono space-y-1 ml-7">
         <div>title = "{title}"</div>
         <div>content = "{content}"</div>
-        <div class="text-[#a371f7]">data = title\0content\0 → {title.length + content.length + 2} bytes</div>
+        <div class="text-[#a371f7]">data = TYPE\0NAME\0CONTENTS\0 → {title.length + content.length + 8} bytes</div>
         <div class="text-[#3fb950]">gzip(data) → {debug ? `${debug.compressedLen} bytes` : '...'}</div>
         <div class="text-[#58a6ff]">pad to 6487 bytes (zero-fill)</div>
       </div>
+      {#if showCode.has(1)}<pre class="text-[9px] font-mono text-[#3fb950] bg-[#0d1117] rounded-md p-2 mt-2 overflow-x-auto whitespace-pre-wrap border border-[#21262d]">{stepMeta[0].code}</pre>{/if}
     </div>
 
     <!-- Step 2: ECDH -->
@@ -97,6 +154,8 @@
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 2 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 2: ECDH Key Exchange <span class="text-[10px] text-[#3fb950]">(classical)</span></h4>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[1].lib}</span>
+        <button onclick={() => toggleCode(2)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(2) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>secp256k1 Diffie-Hellman between writer and reader:</p>
@@ -111,6 +170,7 @@
         {/if}
         <p class="text-[#f85149] text-[9px] mt-1">⚠ Vulnerable to quantum computers (Shor's algorithm)</p>
       </div>
+      {#if showCode.has(2)}<pre class="text-[9px] font-mono text-[#3fb950] bg-[#0d1117] rounded-md p-2 mt-2 overflow-x-auto whitespace-pre-wrap border border-[#21262d]">{stepMeta[1].code}</pre>{/if}
     </div>
 
     <!-- Step 3: ML-KEM -->
@@ -118,6 +178,8 @@
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 3 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 3: ML-KEM-1024 Encapsulation <span class="text-[10px] text-[#a371f7]">(post-quantum)</span></h4>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[2].lib}</span>
+        <button onclick={() => toggleCode(3)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(3) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>FIPS 203 key encapsulation to reader's ML-KEM public key:</p>
@@ -129,6 +191,7 @@
         {/if}
         <p class="text-[#3fb950] text-[9px] mt-1">✓ Resistant to quantum computers (lattice-based)</p>
       </div>
+      {#if showCode.has(3)}<pre class="text-[9px] font-mono text-[#3fb950] bg-[#0d1117] rounded-md p-2 mt-2 overflow-x-auto whitespace-pre-wrap border border-[#21262d]">{stepMeta[2].code}</pre>{/if}
     </div>
 
     <!-- Step 4: AES Key -->
@@ -136,6 +199,8 @@
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 4 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 4: Derive AES Key</h4>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[3].lib}</span>
+        <button onclick={() => toggleCode(4)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(4) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>Combine both secrets into one AES key:</p>
@@ -147,6 +212,7 @@
           <div class="font-mono text-[#484f58]">→ 32 bytes (run to see)</div>
         {/if}
       </div>
+      {#if showCode.has(4)}<pre class="text-[9px] font-mono text-[#3fb950] bg-[#0d1117] rounded-md p-2 mt-2 overflow-x-auto whitespace-pre-wrap border border-[#21262d]">{stepMeta[3].code}</pre>{/if}
     </div>
 
     <!-- Step 5: AES Encrypt -->
@@ -154,12 +220,15 @@
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 5 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 5: AES-256-CTR Encrypt</h4>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[4].lib}</span>
+        <button onclick={() => toggleCode(5)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(5) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>Encrypt the gzip'd, padded data:</p>
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">AES-256-CTR(key, padded_data) → ciphertext</div>
         <div class="font-mono text-[#d29922]">→ {debug ? `${debug.encryptedLen} bytes` : '6487 bytes'} (goes in the AES field of the slot)</div>
       </div>
+      {#if showCode.has(5)}<pre class="text-[9px] font-mono text-[#3fb950] bg-[#0d1117] rounded-md p-2 mt-2 overflow-x-auto whitespace-pre-wrap border border-[#21262d]">{stepMeta[4].code}</pre>{/if}
     </div>
 
     <!-- Step 6: Sign -->
@@ -167,6 +236,8 @@
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 6 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 6: BIP-340 Schnorr Signature</h4>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[5].lib}</span>
+        <button onclick={() => toggleCode(6)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(6) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
         <p>Sign the record so readers can verify authorship:</p>
@@ -177,6 +248,7 @@
           <div class="font-mono text-[#484f58]">→ 64-byte signature</div>
         {/if}
       </div>
+      {#if showCode.has(6)}<pre class="text-[9px] font-mono text-[#3fb950] bg-[#0d1117] rounded-md p-2 mt-2 overflow-x-auto whitespace-pre-wrap border border-[#21262d]">{stepMeta[5].code}</pre>{/if}
     </div>
   </div>
 
