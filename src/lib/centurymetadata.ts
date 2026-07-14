@@ -101,12 +101,6 @@ function taggedHash(tag: string, msg: Uint8Array): Uint8Array {
   return sha256(concatBytes(tagHash, tagHash, msg));
 }
 
-function bytesToNumberBE(bytes: Uint8Array): bigint {
-  let result = 0n;
-  for (const b of bytes) result = (result << 8n) | BigInt(b);
-  return result;
-}
-
 function int64ToBytesBE(value: bigint): Uint8Array {
   const buf = new Uint8Array(8);
   let v = value;
@@ -118,9 +112,8 @@ function int64ToBytesBE(value: bigint): Uint8Array {
 }
 
 function computeEcdh(myPrivKey: Uint8Array, theirPubKeyCompressed: Uint8Array): Uint8Array {
-  const sharedPoint = secp256k1.Point.fromBytes(theirPubKeyCompressed).multiply(bytesToNumberBE(myPrivKey));
-  const x = sharedPoint.toBytes(true).subarray(1, 33);
-  return sha256(x);
+  const shared = secp256k1.getSharedSecret(myPrivKey, theirPubKeyCompressed);
+  return sha256(shared.subarray(1, 33));
 }
 
 function gzipCompress(data: Uint8Array): Uint8Array {

@@ -99,18 +99,22 @@ const parts = text.split('\\0');` },
   <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
     <h3 class="text-sm font-semibold text-[#e6edf3]">Record to decrypt</h3>
     <div class="grid sm:grid-cols-2 gap-3">
-      <input
-        bind:value={title}
-        data-testid="cm-dec-title"
-        placeholder="title"
-        class="bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
-      />
-      <input
-        bind:value={content}
-        data-testid="cm-dec-content"
-        placeholder="content"
-        class="bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
-      />
+      <label class="block">
+        <span class="text-[10px] text-[#8b949e] font-medium block mb-1">title</span>
+        <input
+          bind:value={title}
+          data-testid="cm-dec-title"
+          class="w-full bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+        />
+      </label>
+      <label class="block">
+        <span class="text-[10px] text-[#8b949e] font-medium block mb-1">content</span>
+        <input
+          bind:value={content}
+          data-testid="cm-dec-content"
+          class="w-full bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+        />
+      </label>
     </div>
     <button
       onclick={runDecryption}
@@ -128,7 +132,7 @@ const parts = text.split('\\0');` },
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 1 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 1: Verify BIP-340 signature</h4>
-        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[0].lib}</span>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/20 px-1.5 py-0.5 rounded-full">{stepMeta[0].lib}</span>
         <button onclick={() => toggleCode(1)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(1) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
@@ -148,7 +152,7 @@ const parts = text.split('\\0');` },
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 2 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 2: ECDH <span class="text-[10px] text-[#3fb950]">(classical)</span></h4>
-        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[1].lib}</span>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/20 px-1.5 py-0.5 rounded-full">{stepMeta[1].lib}</span>
         <button onclick={() => toggleCode(2)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(2) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
@@ -166,7 +170,7 @@ const parts = text.split('\\0');` },
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 3 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 3: ML-KEM-1024 decapsulate <span class="text-[10px] text-[#a371f7]">(post-quantum)</span></h4>
-        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[2].lib}</span>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/20 px-1.5 py-0.5 rounded-full">{stepMeta[2].lib}</span>
         <button onclick={() => toggleCode(3)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(3) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
@@ -182,7 +186,7 @@ const parts = text.split('\\0');` },
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 4 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 4: Derive AES key</h4>
-        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[3].lib}</span>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/20 px-1.5 py-0.5 rounded-full">{stepMeta[3].lib}</span>
         <button onclick={() => toggleCode(4)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(4) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
@@ -200,7 +204,7 @@ const parts = text.split('\\0');` },
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 5 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 5: AES-256-CTR decrypt</h4>
-        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[4].lib}</span>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/20 px-1.5 py-0.5 rounded-full">{stepMeta[4].lib}</span>
         <button onclick={() => toggleCode(5)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(5) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
@@ -217,7 +221,7 @@ const parts = text.split('\\0');` },
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 6 ? '✅' : '⏳'}</span>
         <h4 class="text-sm font-semibold text-[#e6edf3]">Step 6: Gunzip + parse TYPE\0NAME\0CONTENTS\0 triples</h4>
-        <span class="text-[9px] text-[#d29922] bg-[#d29922]/10 px-1.5 py-0.5 rounded-full">{stepMeta[5].lib}</span>
+        <span class="text-[9px] text-[#d29922] bg-[#d29922]/20 px-1.5 py-0.5 rounded-full">{stepMeta[5].lib}</span>
         <button onclick={() => toggleCode(6)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(6) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">

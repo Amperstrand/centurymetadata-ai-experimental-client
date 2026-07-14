@@ -31,7 +31,10 @@ test.describe('capture per-section screenshots', () => {
     await gotoAndRun(page, 'recordtypes');
   });
   test('shot-slotpacking', async ({ page }) => {
-    await gotoAndRun(page, 'slotpacking');
+    await gotoAndRun(page, 'slotpacking', async (p) => {
+      await p.getByTestId('cm-pack-budget').scrollIntoViewIfNeeded();
+      await p.waitForTimeout(300);
+    });
   });
   test('shot-encryption', async ({ page }) => {
     await gotoAndRun(page, 'encryption', async (p) => {
