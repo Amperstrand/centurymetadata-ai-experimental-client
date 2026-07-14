@@ -42,6 +42,7 @@
     { id: 'bundle', num: 12, label: 'The Bundle', icon: '🌐' },
     { id: 'xorpir', num: 13, label: 'XOR Privacy', icon: '🕵️' },
     { id: 'playground', num: 14, label: 'Try It Yourself', icon: '🎮' },
+    { id: 'explorer', num: 15, label: 'Network Explorer', icon: '🔭' },
   ];
 
   function handleDerive() {
@@ -640,6 +641,29 @@ BIP-39 Seed
             <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 text-center">
               <p class="text-xs text-[#8b949e]">⚠ Derive keys in Section 2 first.</p>
             </div>
+          {/if}
+        </div>
+      </div>
+
+      <div id="cm-section-explorer" class="scroll-mt-6">
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🔭</span>
+            <h2 class="text-xl font-bold text-[#e6edf3]">Network Explorer</h2>
+          </div>
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
+            What's actually on the test server? This section fetches the live bundle and shows every occupied slot's
+            public metadata — writer, reader_id, generation. Your own records are highlighted.
+          </p>
+          {#if keys}
+            {#await import('./CmNetworkExplorer.svelte')}
+              <div class="flex items-center gap-3 py-8 justify-center">
+                <div class="w-5 h-5 rounded-full border-2 border-[#21262d] border-t-[#58a6ff] animate-spin"></div>
+                <span class="text-xs text-[#8b949e]">Loading...</span>
+              </div>
+            {:then module}
+              <module.default {keys} />
+            {/await}
           {/if}
         </div>
       </div>

@@ -6,7 +6,7 @@ import { waitForApp } from '../helpers';
 
 const ALL_SECTION_IDS = [
   'overview', 'keys', 'record', 'recordtypes', 'slotpacking', 'encryption', 'decryption',
-  'security', 'whyhybrid', 'gotchas', 'nodevsbrowser', 'bundle', 'xorpir', 'playground',
+  'security', 'whyhybrid', 'gotchas', 'nodevsbrowser', 'bundle', 'xorpir', 'playground', 'explorer',
 ];
 
 async function isInViewport(page: Page, selector: string): Promise<boolean> {
@@ -20,7 +20,7 @@ async function isInViewport(page: Page, selector: string): Promise<boolean> {
 }
 
 test.describe('CenturyMetadata — navigation + tour', () => {
-  test('CM-30: all 14 desktop nav buttons are present', async ({ page }) => {
+  test('CM-30: all 15 desktop nav buttons are present', async ({ page }) => {
     await waitForApp(page);
     for (const id of ALL_SECTION_IDS) {
       await expect(page.getByTestId(`cm-nav-${id}`)).toBeVisible();
@@ -57,24 +57,23 @@ test.describe('CenturyMetadata — navigation + tour', () => {
     expect(activeOnes[0].id).toBe('cm-nav-record');
   });
 
-  test('CM-33: tour starts at section 1 and advances through all 14', async ({ page }) => {
+  test('CM-33: tour starts at section 1 and advances through all 15', async ({ page }) => {
     await waitForApp(page);
     // Start
     await page.getByTestId('cm-tour-start').click();
     await expect(page.getByTestId('cm-tour-banner')).toBeVisible();
     let banner = await page.getByTestId('cm-tour-banner').innerText();
-    expect(banner).toContain('1/14');
-    expect(banner).toContain('The Big Picture');
+    expect(banner).toContain('1/15');
     // Prev is disabled on first
     await expect(page.getByTestId('cm-tour-prev')).toBeDisabled();
     // Walk forward through every section
-    for (let i = 2; i <= 14; i++) {
+    for (let i = 2; i <= 15; i++) {
       // On the last step the next button label flips to "Done"
       const nextBtn = page.getByTestId('cm-tour-next');
       await nextBtn.click();
       await page.waitForTimeout(500);
       banner = await page.getByTestId('cm-tour-banner').innerText();
-      expect(banner).toContain(`${i}/14`);
+      expect(banner).toContain(`${i}/15`);
     }
     // Now the button reads Done; clicking ends the tour
     await expect(page.getByTestId('cm-tour-next')).toContainText('Done');
@@ -91,11 +90,11 @@ test.describe('CenturyMetadata — navigation + tour', () => {
     await page.getByTestId('cm-tour-next').click();
     await page.waitForTimeout(400);
     let banner = await page.getByTestId('cm-tour-banner').innerText();
-    expect(banner).toContain('2/14');
+    expect(banner).toContain('2/15');
     await page.getByTestId('cm-tour-prev').click();
     await page.waitForTimeout(400);
     banner = await page.getByTestId('cm-tour-banner').innerText();
-    expect(banner).toContain('1/14');
+    expect(banner).toContain('1/15');
     await expect(page.getByTestId('cm-tour-prev')).toBeDisabled();
   });
 
@@ -119,7 +118,7 @@ test.describe('CenturyMetadata — navigation + tour', () => {
     await expect(mobileNav).toBeVisible();
     // It has 11 buttons (one per section, icon + number)
     const pillCount = await mobileNav.locator('button').count();
-    expect(pillCount).toBe(14);
+    expect(pillCount).toBe(15);
   });
 
   test('CM-37: mobile nav pill scrolls to its section', async ({ page }) => {

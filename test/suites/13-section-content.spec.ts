@@ -4,7 +4,7 @@ import { waitForApp, toSection, base } from '../helpers';
 const BASE = base();
 
 test.describe('CenturyMetadata — section content', () => {
-  test('CM-20: all 14 sections render their heading', async ({ page }) => {
+  test('CM-20: all 15 sections render their heading', async ({ page }) => {
     await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     const headings: Record<string, string> = {
       overview: 'The Big Picture',
@@ -21,6 +21,7 @@ test.describe('CenturyMetadata — section content', () => {
       bundle: 'The Bundle System',
       xorpir: 'XOR Privacy Retrieval',
       playground: 'Try It Yourself',
+      explorer: 'Network Explorer',
     };
     for (const [id, text] of Object.entries(headings)) {
       await expect(page.locator(`#cm-section-${id}`)).toContainText(text, { timeout: 10000 });

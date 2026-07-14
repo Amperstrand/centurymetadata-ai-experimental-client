@@ -81,7 +81,7 @@ test.describe('CenturyMetadata — edge cases + robustness', () => {
     await page.getByTestId('cm-tour-next').click();
     await page.waitForTimeout(500);
     const banner = await page.getByTestId('cm-tour-banner').innerText();
-    expect(banner).toContain('2/14');
+    expect(banner).toContain('2/15');
   });
 
   test('CM-87: resizing between mobile and desktop preserves state', async ({ page }) => {
