@@ -30,6 +30,8 @@ test.describe('mobile screenshots (375px)', () => {
       await p.waitForTimeout(300);
     });
   });
+  test('mobile-recordtypes', async ({ page }) => { await mobileShot(page, 'recordtypes'); });
+  test('mobile-slotpacking', async ({ page }) => { await mobileShot(page, 'slotpacking'); });
   test('mobile-encryption', async ({ page }) => {
     await mobileShot(page, 'encryption', async (p) => {
       await p.getByTestId('cm-enc-run').click();
@@ -62,6 +64,12 @@ test.describe('mobile screenshots (375px)', () => {
     await mobileShot(page, 'bundle', async (p) => {
       await expect(p.getByTestId('cm-slot-grid')).toBeVisible({ timeout: 20000 });
       await p.waitForTimeout(1500);
+    });
+  });
+  test('mobile-xorpir', async ({ page }) => {
+    await mobileShot(page, 'xorpir', async (p) => {
+      await p.getByTestId('cm-xorpir-run').click();
+      await p.waitForTimeout(4000);
     });
   });
   test('mobile-playground', async ({ page }) => { await mobileShot(page, 'playground'); });

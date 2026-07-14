@@ -27,6 +27,12 @@ test.describe('capture per-section screenshots', () => {
       await p.waitForTimeout(300);
     });
   });
+  test('shot-recordtypes', async ({ page }) => {
+    await gotoAndRun(page, 'recordtypes');
+  });
+  test('shot-slotpacking', async ({ page }) => {
+    await gotoAndRun(page, 'slotpacking');
+  });
   test('shot-encryption', async ({ page }) => {
     await gotoAndRun(page, 'encryption', async (p) => {
       await p.getByTestId('cm-enc-run').click();
@@ -67,6 +73,12 @@ test.describe('capture per-section screenshots', () => {
     await gotoAndRun(page, 'bundle', async (p) => {
       await expect(p.getByTestId('cm-slot-grid')).toBeVisible({ timeout: 20000 });
       await p.waitForTimeout(2000);
+    });
+  });
+  test('shot-xorpir', async ({ page }) => {
+    await gotoAndRun(page, 'xorpir', async (p) => {
+      await p.getByTestId('cm-xorpir-run').click();
+      await p.waitForTimeout(5000);
     });
   });
   test('shot-playground', async ({ page }) => {

@@ -347,6 +347,32 @@ BIP-39 Seed
                 but only your private keys can decrypt the contents.
               </p>
             </div>
+
+            <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-2">
+              <h4 class="text-xs font-semibold text-[#d29922]">📦 Multiple slots from one seed</h4>
+              <p class="text-[11px] text-[#b1bac4] leading-relaxed">
+                The path <code class="text-[#a371f7] font-mono">m/0x44315441'/N'/</code> takes a slot number
+                <code class="text-[#a371f7]">N</code>. Each slot derives completely independent keys — a separate
+                reader_id, writer key, and ML-KEM identity. One seed phrase manages multiple encrypted channels:
+              </p>
+              <div class="grid grid-cols-3 gap-2 text-center text-[10px] font-mono">
+                <div class="bg-[#0d1117] rounded p-2 border border-[#21262d]">
+                  <div class="text-[#3fb950] font-bold">N=0</div>
+                  <div class="text-[#484f58]">main wallet</div>
+                </div>
+                <div class="bg-[#0d1117] rounded p-2 border border-[#21262d]">
+                  <div class="text-[#58a6ff] font-bold">N=1</div>
+                  <div class="text-[#484f58]">secondary</div>
+                </div>
+                <div class="bg-[#0d1117] rounded p-2 border border-[#21262d]">
+                  <div class="text-[#a371f7] font-bold">N=2</div>
+                  <div class="text-[#484f58]">PSBT storage</div>
+                </div>
+              </div>
+              <p class="text-[10px] text-[#484f58]">
+                This demo uses slot 0. The centurytool CLI supports <code class="text-[#8b949e]">--slot N</code> to switch.
+              </p>
+            </div>
           {/if}
         </div>
       </div>

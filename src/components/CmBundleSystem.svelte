@@ -169,5 +169,20 @@
         know which prefix length to use for <code class="text-[#a371f7]">fetchxor</code>.
       </p>
     </div>
+    <div class="mt-3 pt-3 border-t border-[#21262d]">
+      <div class="text-[10px] text-[#d29922] font-mono mb-1">bundle splitting: the scaling mechanism</div>
+      <p class="text-[10px] text-[#8b949e] leading-relaxed mb-2">
+        When a bundle exceeds 1024 records, it splits in half. Each half is named by the shortest hex prefix that
+        distinguishes their reader_ids. Directories split the same way when they exceed 1024 bundles.
+      </p>
+      <pre class="text-[9px] text-[#8b949e] font-mono leading-relaxed overflow-x-auto bg-[#0d1117] rounded-md p-2">
+Before split (1024+ records):       After split:
+┌─────────────────────────┐        ┌──────────┐ ┌──────────┐
+│ 00-ff/                  │   →    │ 00-7f/   │ │ 80-ff/   │
+│   00-ff/                │        │   00-7f/ │ │   80-ff/ │
+│     1024 slots          │        │   ~512   │ │   ~512   │
+└─────────────────────────┘        └──────────┘ └──────────┘
+      </pre>
+    </div>
   </div>
 </div>

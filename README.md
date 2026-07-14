@@ -8,16 +8,22 @@ An interactive learning client for [centurymetadata](https://centurymetadata.org
 
 ## What it shows
 
-A single-page explorer walks through the whole system, end to end:
+A single-page explorer walks through the whole system, end to end — 14 interactive sections:
 
 1. **The Big Picture** — one BIP-39 seed → two ecosystems (Nostr + centurymetadata)
-2. **Keys & Identity** — live `m/0x44315441'/0'/{0',1',3'}` ("D1TA") derivation
-3. **Record Anatomy** — the 8192-byte slot, byte-by-byte (137 cleartext / 8055 encrypted)
-4. **Encryption** — animated 6-step hybrid pipeline (ECDH + ML-KEM-1024 → AES-256-CTR → BIP-340)
-5. **Decryption** — the reverse pipeline, with live values
-6. **Security Demos** — tamper-detection (sig invalidates) + wrong-reader confidentiality (reader_id mismatch)
-7. **The Bundle** — 1024-slot XOR-masked grid + a network sample from the public test API
-8. **Playground** — write a real encrypted record, fetch it back, watch it decrypt
+2. **Keys & Identity** — live `m/0x44315441'/0'/{0',1',2',3'}` ("D1TA") derivation, including writer ML-KEM
+3. **Record Anatomy** — the 8192-byte slot byte-by-byte, plus the self-documenting preamble
+4. **Bitcoin Record Types** — interactive validator for all 5 accepted types (PSBT, transaction, miniscript, descriptor, BIP-329 labels)
+5. **Slot Packing** — live gzip compression showing how multiple records fit in one 6487-byte budget
+6. **Encryption** — animated 6-step hybrid pipeline (ECDH + ML-KEM-1024 → AES-256-CTR → BIP-340)
+7. **Decryption** — the reverse pipeline, with live values
+8. **Security Demos** — tamper-detection, wrong-reader confidentiality, and public signature verification without private keys
+9. **Why Hybrid** — concrete what-if scenarios for quantum + cryptanalysis failure
+10. **Browser Crypto** — the gunzip-on-padded-data bug, gzip OS byte fix, AES/ECDH/Buffer porting gotchas
+11. **Node vs Browser** — side-by-side API comparison tables
+12. **The Bundle** — 1024-slot XOR-masked grid, fetchdepth routing, network sample from the public test API
+13. **XOR Privacy** — animated 5-step two-server XOR-PIR retrieval demo
+14. **Playground** — write a real encrypted record, fetch it back, watch it decrypt
 
 Records use **hybrid cryptography**: classical ECDH (breakable by a future quantum computer) **plus** post-quantum ML-KEM-1024 (FIPS 203, lattice-based). An attacker must break **both** to decrypt.
 
@@ -25,7 +31,7 @@ Records use **hybrid cryptography**: classical ECDH (breakable by a future quant
 
 ```bash
 npm install
-npm run dev          # http://localhost:5173/#/centurymetadata
+npm run dev          # http://localhost:5173/
 ```
 
 The client-side demos (keys, encryption, decryption, tamper, wrong-reader) need **no network**. The Bundle and Playground sections call `/cm/api/v1/*`, which the Pages Function (`functions/cm/[[path]].ts`) proxies to `testapi.centurymetadata.org`. Under `npm run dev` / `vite preview` there is no proxy, so those two sections show empty states — use `npm run build && npx wrangler pages dev` for a local full-stack run, or the deployed URL.
@@ -43,18 +49,23 @@ npx wrangler pages deploy dist --project-name centurymetadata-ai-experimental-cl
 
 ```bash
 npm run test:roundtrip        # Node reference: full encode → upload → fetch → decode round-trip
-SERVER=<url> npm run test:e2e # Playwright suite (CM-01..CM-09)
+SERVER=<url> npm run test:e2e # Playwright suite (84 tests across 10 suites)
 ```
 
 ## Layout
 
 ```
-src/lib/centurymetadata.ts            crypto: keys, encode/decode, gzip, AES-CTR, network scan
-src/components/CenturyMetadata.svelte 8-section explorer shell
-src/components/Cm*.svelte              per-section sub-components
+src/lib/centurymetadata.ts             crypto: keys, encode/decode (TYPE\0NAME\0CONTENTS\0 triples), gzip, AES-CTR, network scan, checkSignature
+src/lib/nostr.ts                       NIP-06 key derivation + note signing
+src/components/CenturyMetadata.svelte  14-section explorer shell with sticky nav + guided tour
+src/components/Cm*.svelte              per-section sub-components (16 files)
+src/components/NostrIdentity.svelte    live Nostr bridge (one seed → two identities)
+src/components/TourMode.svelte         guided tour through all 14 sections
 functions/cm/[[path]].ts              CORS proxy → testapi.centurymetadata.org (Pages Function)
 test/roundtrip.mjs                    Node reference implementation
-test/suites/11-centurymetadata.spec.ts Playwright suite
+test/helpers.ts                       shared Playwright helpers (waitForApp, toSection)
+test/suites/11-20                     10 Playwright suites (84 tests)
+test/generate-summary.mjs             CI evidence summary generator
 docs/bridge.md                        design notes (Nostr ↔ centurymetadata bridge)
 ```
 
