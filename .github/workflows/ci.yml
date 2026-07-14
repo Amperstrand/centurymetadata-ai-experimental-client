@@ -93,6 +93,11 @@ jobs:
           # Generate summary.json from Playwright report.json
           node test/generate-summary.mjs test-results/ || true
 
+          # Extract pass/fail counts from summary.json
+          PASSED=$(python3 -c "import json;d=json.load(open('test-results/summary.json'));print(d.get('passed',0))" 2>/dev/null || echo 0)
+          FAILED=$(python3 -c "import json;d=json.load(open('test-results/summary.json'));print(d.get('failed',0))" 2>/dev/null || echo 0)
+          SKIPPED=$(python3 -c "import json;d=json.load(open('test-results/summary.json'));print(d.get('skipped',0))" 2>/dev/null || echo 0)
+
           # Configure Nostr identity
           mkdir -p ~/.config/prta
           echo "$PUBLISH_NSEC" > ~/.config/prta/nsec
@@ -104,4 +109,7 @@ jobs:
             --relays wss://relay.cashu.email,wss://relay.damus.io,wss://nos.lol \
             --branch "${{ github.ref_name }}" \
             --commit "${{ github.sha }}" \
+            --passed "$PASSED" \
+            --failed "$FAILED" \
+            --skipped "$SKIPPED" \
             || echo "Publish failed (non-blocking)"
