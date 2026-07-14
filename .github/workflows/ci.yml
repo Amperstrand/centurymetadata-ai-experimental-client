@@ -51,6 +51,13 @@ jobs:
         if: always()
         run: kill $(cat /tmp/wrangler.pid) 2>/dev/null || true
 
+      - name: Copy screenshots and videos to test-results for evidence publishing
+        if: always()
+        run: |
+          mkdir -p test-results/screenshots test-results/videos
+          cp test/screenshots/*.png test-results/screenshots/ 2>/dev/null || true
+          find test-results -name "*.webm" -exec cp {} test-results/videos/ \; 2>/dev/null || true
+
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
         if: always()

@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { waitForApp, toSection, base } from '../helpers';
 
+test.use({ video: 'on' });
+
 const BASE = base();
 
 test.describe('CenturyMetadata — new component tests', () => {

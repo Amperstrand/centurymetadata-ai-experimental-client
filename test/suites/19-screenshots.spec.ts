@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
+test.use({ video: 'on' });
+
 const BASE = process.env.SERVER || 'http://localhost:4173';
 
 async function gotoAndRun(page: Page, id: string, run?: (page: Page) => Promise<void>) {
