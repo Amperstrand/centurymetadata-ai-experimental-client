@@ -80,3 +80,27 @@ docs/bridge.md                        design notes (Nostr ↔ centurymetadata br
 
 - [centurymetadata.org](https://centurymetadata.org) · [test API](https://testapi.centurymetadata.org)
 - [FIPS 203](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.203.pdf) (ML-KEM) · [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0034.mediawiki) (Schnorr) · [NIP-06](https://github.com/nostr-protocol/nips/blob/master/06.md)
+
+## Attribution
+
+This project is a **browser-based learning client** that visualizes and explains the centurymetadata protocol.
+It is not affiliated with the upstream project. The encode/decode logic in `src/lib/centurymetadata.ts` is a
+TypeScript port of the [Python reference implementation](https://github.com/rustyrussell/centurymetadata/tree/master/python)
+by [Rusty Russell](https://github.com/rustyrussell), adapted to use browser-compatible libraries:
+
+| Primitive | Library | Python equivalent |
+|---|---|---|
+| secp256k1 ECDH + Schnorr | [`@noble/curves`](https://github.com/paulmillr/noble-curves) | `secp256k1` (libsecp256k1 bindings) |
+| ML-KEM-1024 (FIPS 203) | [`@noble/post-quantum`](https://github.com/paulmillr/noble-post-quantum) | `kyber_py.ml_kem` |
+| SHA-256 | [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) | `hashlib` |
+| BIP-32 / BIP-39 | [`@scure/bip32`](https://github.com/paulmillr/scure-bip32) / [`@scure/bip39`](https://github.com/paulmillr/scure-bip39) | custom (97 lines in `bip39.py`) |
+| gzip | [`fflate`](https://github.com/101arrowz/fflate) | `gzip` (stdlib) |
+| AES-256-CTR | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto) | `pycryptodome` |
+
+Key patterns adapted from the Python reference:
+- Record format and preamble — `python/centurymetadata/constants.py`
+- TYPE/NAME/CONTENTS triples — `add-name-fields` branch (PR #9)
+- 5 Bitcoin record types + validation — `python/centurymetadata/validate.py`
+- BIP-32 derivation paths `/0'`, `/1'`, `/2'`, `/3'` — `python/centurymetadata/bip39.py`
+- XOR-PIR two-server retrieval — `examples/EXAMPLES.md`
+- gzip OS byte fix (offset 9 → `0xff`) — `python/centurymetadata/encode.py` line 25

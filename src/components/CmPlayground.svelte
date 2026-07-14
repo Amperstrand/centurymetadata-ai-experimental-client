@@ -142,7 +142,7 @@
                 </div>
               {/each}
             {:else}
-              <span class="text-[10px] text-[#484f58]">(no decodable title\0content pairs)</span>
+              <span class="text-[10px] text-[#484f58]">(no decodable triples found)</span>
             {/if}
           </div>
         {/each}

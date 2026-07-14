@@ -66,7 +66,7 @@
       color: '#21262d',
       encrypted: true,
       desc: 'AES-256-CTR Encrypted Payload',
-      detail: 'The actual record content (title\\0content pairs), gzip-compressed, zero-padded to 6487 bytes, then encrypted with AES-256-CTR using SHA256(ECDH_secret ∥ MLKEM_secret) as the key.',
+      detail: 'The actual record content (TYPE\\0NAME\\0CONTENTS\\0 triples), gzip-compressed, zero-padded to 6487 bytes, then encrypted with AES-256-CTR using SHA256(ECDH_secret ∥ ML-KEM_secret) as the key.',
     },
   ];
 

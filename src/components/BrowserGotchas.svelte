@@ -7,7 +7,7 @@
   let fixedText = $state('');
 
   function runDemo() {
-    // Mirror the lib's exact data shape: title\0content\0, gzip level 9, zero mtime,
+    // Reproduces the gunzip-on-padded-data bug (title\0content\0 is just demo data)
     // then zero-pad to a fixed length (centurymetadata pads AES to 6487 bytes).
     const raw = new TextEncoder().encode('title\0content\0');
     const gz = gzipSync(raw, { level: 9 });
