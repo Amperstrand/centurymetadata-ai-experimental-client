@@ -77,6 +77,59 @@
   }
 
   let selected = $derived(fields.find(f => f.id === selectedField));
+
+  const SAMPLE_HEX = "a4f3c18e9b2d7605e8a1c3f4b5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7";
+  const SAMPLE_WRITER = "02fef7f64299a9a747d3c085fec2d3a8f0cb8c3187f0fb75c507c298c7c84fd424";
+  const SAMPLE_READER = "3454ae5b4cd7ab8c5e837739c18448da316dc407d5f604de738c371bc7ab9ff3";
+  const SAMPLE_GEN = "0000000000000000";
+  const SAMPLE_MLKEM_START = "60e56b72c5821af22a359880ed38c94b828c8eb74609a6c845f1be5f244e8d99890c5609087778b48b6d0f7693a5e80d";
+
+  let fullHex = SAMPLE_HEX + SAMPLE_WRITER + SAMPLE_READER + SAMPLE_GEN + SAMPLE_MLKEM_START;
+
+  let hoveredField = $state<string | null>(null);
+
+  const fieldOffsets: Record<string, [number, number]> = {
+    sig: [0, 64],
+    writer: [64, 97],
+    reader: [97, 129],
+    gen: [129, 137],
+    mlkem: [137, 137 + 48],
+  };
+
+  function hexLines(hex: string, bytesPerLine: number = 16): { offset: number; bytes: { hex: string; fieldId: string | null }[]; ascii: string }[] {
+    const lines = [];
+    const totalBytes = hex.length / 2;
+    for (let i = 0; i < totalBytes; i += bytesPerLine) {
+      const lineBytes: { hex: string; fieldId: string | null }[] = [];
+      let ascii = "";
+      for (let j = 0; j < bytesPerLine && i + j < totalBytes; j++) {
+        const byteIdx = i + j;
+        const hexStr = hex.substr(byteIdx * 2, 2);
+        let fieldId: string | null = null;
+        for (const [fid, [start, end]] of Object.entries(fieldOffsets)) {
+          if (byteIdx >= start && byteIdx < end) { fieldId = fid; break; }
+        }
+        const code = parseInt(hexStr, 16);
+        ascii += code >= 32 && code <= 126 ? String.fromCharCode(code) : ".";
+        lineBytes.push({ hex: hexStr, fieldId });
+      }
+      lines.push({ offset: i, bytes: lineBytes, ascii });
+    }
+    return lines;
+  }
+
+  let hexDump = $derived(hexLines(fullHex));
+
+  function fieldColor(fieldId: string | null): string {
+    if (!fieldId) return "text-[#484f58]";
+    const f = fields.find(x => x.id === fieldId);
+    return f ? "" : "text-[#484f58]";
+  }
+
+  function isHighlighted(fieldId: string | null): boolean {
+    if (!hoveredField || !fieldId) return false;
+    return fieldId === hoveredField || (hoveredField === 'mlkem' && fieldId === 'mlkem');
+  }
 </script>
 
 <div class="space-y-4">
@@ -129,6 +182,46 @@
           {/if}
         </button>
       {/each}
+    </div>
+  </div>
+
+  <!-- Hex dump with hover-to-highlight -->
+  <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
+    <h3 class="text-sm font-semibold text-[#e6edf3]">Hex Dump</h3>
+    <p class="text-[11px] text-[#8b949e]">The first ~185 bytes of a real slot. Hover a field name to highlight its bytes.</p>
+    <div class="flex flex-wrap gap-2 mb-2">
+      {#each fields as f}
+        <div
+          onmouseenter={() => hoveredField = f.id}
+          onmouseleave={() => hoveredField = null}
+          class="flex items-center gap-1.5 text-[9px] cursor-default px-2 py-0.5 rounded {hoveredField === f.id ? 'bg-[#21262d]' : ''}"
+        >
+          <div class="w-2.5 h-2.5 rounded-sm" style="background: {f.color}"></div>
+          <span class="font-mono {hoveredField === f.id ? 'text-[#e6edf3]' : 'text-[#8b949e]'}">{f.name}</span>
+          <span class="text-[#484f58]">{f.size}B</span>
+        </div>
+      {/each}
+    </div>
+    <div data-testid="cm-hexdump" class="bg-[#0d1117] rounded-md p-3 overflow-x-auto text-[9px] font-mono leading-relaxed">
+      {#each hexDump as line}
+        <div class="flex gap-2 whitespace-nowrap">
+          <span class="text-[#484f58] select-none">{line.offset.toString(16).padStart(4, "0")}:</span>
+          <span class="flex-1">
+            {#each line.bytes as b}
+              <span
+                class="select-all {isHighlighted(b.fieldId) ? 'font-bold' : ''}"
+                style={b.fieldId && hoveredField === b.fieldId
+                  ? `background: ${fields.find(f => f.id === b.fieldId)?.color}40; color: ${fields.find(f => f.id === b.fieldId)?.color};`
+                  : b.fieldId
+                    ? `color: ${fields.find(f => f.id === b.fieldId)?.color}80;`
+                    : "color: #484f58;"}
+              >{b.hex} </span>
+            {/each}
+          </span>
+          <span class="text-[#484f58] select-none">{line.ascii}</span>
+        </div>
+      {/each}
+      <div class="text-[#484f58] mt-2">····· 8007 more bytes (ML-KEM ciphertext continuation + AES-encrypted payload)</div>
     </div>
   </div>
 
