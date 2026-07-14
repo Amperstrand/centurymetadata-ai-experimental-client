@@ -19,7 +19,7 @@
     tamperSig = null;
     tamperDecrypt = null;
     try {
-      const enc = await encodeRecord(keys, 'untampered', 'original payload', 0n);
+      const enc = await encodeRecord(keys, [['text', 'untampered', 'original payload']], 0n);
       // Flip ONE byte in the SIG region (offset 0..63). Content bytes are untouched,
       // so decodeSlot completes cleanly; the signature no longer verifies.
       const tampered = enc.slot.slice();
@@ -27,8 +27,8 @@
       const decoded = await decodeSlot(keys, tampered);
       tamperSig = decoded.sigValid ? 'valid (unexpected!)' : 'INVALID';
       tamperDecrypt =
-        decoded.fields.length > 0
-          ? `still decoded — content untouched (${decoded.fields[0][0]}: ${decoded.fields[0][1]})`
+        decoded.triples.length > 0
+          ? `still decoded — content untouched (${decoded.triples[0][1]}: ${decoded.triples[0][2]})`
           : 'no fields';
     } catch (e) {
       tamperSig = 'error';
@@ -47,7 +47,7 @@
     wrongResult = null;
     try {
       // Encode a record addressed to YOUR reader_id.
-      const enc = await encodeRecord(keys, 'private', 'for your eyes only', 0n);
+      const enc = await encodeRecord(keys, [['text', 'private', 'for your eyes only']], 0n);
       const slot = enc.slot;
       // The slot's embedded reader_id lives at bytes 97..129.
       const embeddedReaderId = slot.subarray(97, 129);

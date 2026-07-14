@@ -24,7 +24,7 @@
     try {
       const existing = await fetchSlots(keys.readerId);
       const gen = getMaxGeneration(existing, keys.writerPubKey) + 1n;
-      const enc = await encodeRecord(keys, title, content, gen);
+      const enc = await encodeRecord(keys, [['text', title, content]], gen);
       const auth = await authorizeWriter(keys.readerId, keys.writerPubKey);
       const up = await uploadRecord(enc.fullRecord);
       writeOk = up.ok;
@@ -133,11 +133,12 @@
                 sig {r.decoded.sigValid ? '✓ valid' : '✗ invalid'}
               </span>
             </div>
-            {#if r.decoded.fields.length}
-              {#each r.decoded.fields as [k, v] (k)}
+            {#if r.decoded.triples.length}
+              {#each r.decoded.triples as [t, n, c] (n)}
                 <div class="text-[11px]">
-                  <span class="text-[#58a6ff] font-mono">{k}:</span>
-                  <span class="text-[#e6edf3] break-all">{v}</span>
+                  <span class="text-[#a371f7] font-mono text-[9px] mr-1">{t}</span>
+                  <span class="text-[#58a6ff] font-mono">{n}:</span>
+                  <span class="text-[#e6edf3] break-all">{c}</span>
                 </div>
               {/each}
             {:else}

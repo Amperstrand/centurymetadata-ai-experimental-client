@@ -22,6 +22,7 @@
  *   └── m/0x44315441'/0'        → centurymetadata ("D1TA" purpose)
  *       ├── /0' → Writer keypair (BIP-340 Schnorr signing)
  *       ├── /1' → Reader secp256k1 keypair (ECDH)
+ *       ├── /2' → Writer ML-KEM-1024 seed (post-quantum, for bidirectional use)
  *       └── /3' → Reader ML-KEM-1024 seed (post-quantum, FIPS 203)
  *
  * 0x44315441 = ASCII "D1TA". ML-KEM seed = d || taggedHash("...mlkem-z", d) (64 bytes).
@@ -34,7 +35,7 @@
  *
  * - PREAMBLE: human-readable format description (uploaded, not stored in bundle).
  * - SIG: BIP-340 Schnorr signature over taggedHash(TAG, content[64:]).
- * - AES payload: AES-256-CTR(gzip(title\0content\0 pairs), zero-padded to 6487).
+ * - AES payload: AES-256-CTR(gzip(TYPE\0NAME\0CONTENTS\0 triples), zero-padded to 6487).
  * - AES key: SHA256(ECDH_secret || ML-KEM_secret).
  * - MLKEM_CT: ML-KEM-1024 ciphertext encapsulated to reader's ML-KEM pubkey.
  *
@@ -78,6 +79,14 @@ const PROXY_BASE = '/cm/api/v1';
 const SLOT_SIZE = 8192;
 const READER_ID_OFFSET = 64 + 33;
 
+export const ACCEPTED_TYPES = [
+  'bitcoin psbt',
+  'bitcoin transaction',
+  'bitcoin miniscript',
+  'bitcoin output script descriptor',
+  'bitcoin wallet labels',
+] as const;
+
 function concatBytes(...arrays: Uint8Array[]): Uint8Array {
   const total = arrays.reduce((sum, a) => sum + a.length, 0);
   const result = new Uint8Array(total);
@@ -117,6 +126,7 @@ function computeEcdh(myPrivKey: Uint8Array, theirPubKeyCompressed: Uint8Array): 
 function gzipCompress(data: Uint8Array): Uint8Array {
   const result = gzipSync(data, { level: 9 });
   result[4] = 0; result[5] = 0; result[6] = 0; result[7] = 0;
+  if (result.length > 9) result[9] = 0xff;
   return result;
 }
 
@@ -183,6 +193,9 @@ export interface CmKeys {
   writerPubKey: Uint8Array;
   readerSecpPubKey: Uint8Array;
   readerId: Uint8Array;
+  writerMlkemSeedD: Uint8Array;
+  writerMlkemPublicKey: Uint8Array;
+  writerMlkemSecretKey: Uint8Array;
 }
 
 export function deriveCmKeys(mnemonic: string): CmKeys {
@@ -193,11 +206,13 @@ export function deriveCmKeys(mnemonic: string): CmKeys {
   const coin = purpose.deriveChild((0x80000000 + 0) >>> 0);
   const writerChild = coin.deriveChild((0x80000000 + 0) >>> 0);
   const readerSecpChild = coin.deriveChild((0x80000000 + 1) >>> 0);
+  const writerMlkemChild = coin.deriveChild((0x80000000 + 2) >>> 0);
   const readerMlkemChild = coin.deriveChild((0x80000000 + 3) >>> 0);
 
   const writerPrivKey = new Uint8Array(writerChild.privateKey!);
   const readerSecpPrivKey = new Uint8Array(readerSecpChild.privateKey!);
   const readerMlkemSeedD = new Uint8Array(readerMlkemChild.privateKey!);
+  const writerMlkemSeedD = new Uint8Array(writerMlkemChild.privateKey!);
 
   const d = readerMlkemSeedD;
   const z = taggedHash(MLKEM_Z_TAG, d);
@@ -206,6 +221,13 @@ export function deriveCmKeys(mnemonic: string): CmKeys {
   const mlkemPublicKey = new Uint8Array(mlkemKeys.publicKey);
   const mlkemSecretKey = new Uint8Array(mlkemKeys.secretKey);
 
+  const wd = writerMlkemSeedD;
+  const wz = taggedHash(MLKEM_Z_TAG, wd);
+  const writerMlkemSeed = concatBytes(wd, wz);
+  const writerMlkemKeys = ml_kem1024.keygen(writerMlkemSeed);
+  const writerMlkemPublicKey = new Uint8Array(writerMlkemKeys.publicKey);
+  const writerMlkemSecretKey = new Uint8Array(writerMlkemKeys.secretKey);
+
   const writerPubKey = new Uint8Array(secp256k1.getPublicKey(writerPrivKey, true));
   const readerSecpPubKey = new Uint8Array(secp256k1.getPublicKey(readerSecpPrivKey, true));
   const readerId = sha256(concatBytes(readerSecpPubKey, mlkemPublicKey));
@@ -213,6 +235,7 @@ export function deriveCmKeys(mnemonic: string): CmKeys {
   return {
     writerPrivKey, readerSecpPrivKey, readerMlkemSeedD,
     mlkemPublicKey, mlkemSecretKey, writerPubKey, readerSecpPubKey, readerId,
+    writerMlkemSeedD, writerMlkemPublicKey, writerMlkemSecretKey,
   };
 }
 
@@ -239,8 +262,7 @@ export interface EncodedRecord {
 
 export async function encodeRecord(
   keys: CmKeys,
-  title: string,
-  content: string,
+  triples: Array<[string, string, string]>,
   generation: bigint = 0n,
 ): Promise<EncodedRecord> {
   const ecdhSecret = computeEcdh(keys.writerPrivKey, keys.readerSecpPubKey);
@@ -251,7 +273,14 @@ export async function encodeRecord(
 
   const aesKey = sha256(concatBytes(ecdhSecret, mlkemSecret));
 
-  const rawData = new TextEncoder().encode(`${title}\0${content}\0`);
+  const encoder = new TextEncoder();
+  const parts: Uint8Array[] = [];
+  for (const [type, name, contents] of triples) {
+    parts.push(encoder.encode(type), new Uint8Array([0]),
+               encoder.encode(name), new Uint8Array([0]),
+               encoder.encode(contents), new Uint8Array([0]));
+  }
+  const rawData = concatBytes(...parts);
   const compressed = gzipCompress(rawData);
   const padded = new Uint8Array(DATA_LENGTH);
   padded.set(compressed);
@@ -292,7 +321,7 @@ export async function encodeRecord(
 export interface DecodedSlot {
   sigValid: boolean;
   generation: number;
-  fields: [string, string][];
+  triples: [string, string, string][];
   debug: {
     ecdhPrefix: string;
     aesKeyPrefix: string;
@@ -328,9 +357,19 @@ export async function decodeSlot(
   const decompressed = gzipDecompress(decryptedPadded);
 
   const text = new TextDecoder().decode(decompressed);
-  const parts = text.split('\0').filter((_, idx, arr) => !(idx === arr.length - 1 && arr[idx] === ''));
-  const fields: [string, string][] = [];
-  for (let i = 0; i + 1 < parts.length; i += 2) fields.push([parts[i], parts[i + 1]]);
+  const parts = text.split('\0');
+  if (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
+
+  const decodedTriples: [string, string, string][] = [];
+  if (parts.length % 3 === 0) {
+    for (let i = 0; i < parts.length; i += 3) {
+      decodedTriples.push([parts[i], parts[i + 1], parts[i + 2]]);
+    }
+  } else if (parts.length % 2 === 0) {
+    for (let i = 0; i < parts.length; i += 2) {
+      decodedTriples.push(['(legacy)', parts[i], parts[i + 1]]);
+    }
+  }
 
   const generation =
     (BigInt(slotGen[0]) << 56n) | (BigInt(slotGen[1]) << 48n) |
@@ -339,7 +378,7 @@ export async function decodeSlot(
     (BigInt(slotGen[6]) << 8n) | BigInt(slotGen[7]);
 
   return {
-    sigValid, generation: Number(generation), fields,
+    sigValid, generation: Number(generation), triples: decodedTriples,
     debug: {
       ecdhPrefix: toHex(decodeEcdhSecret.subarray(0, 8)),
       aesKeyPrefix: toHex(decodeAesKey.subarray(0, 8)),

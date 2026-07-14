@@ -18,7 +18,7 @@
     result = null;
     try {
       // Encode a real record first so we have a valid slot to decode.
-      const enc = await encodeRecord(keys, title, content, 0n);
+      const enc = await encodeRecord(keys, [['text', title, content]], 0n);
       // Animate the 6 decode steps, then run decodeSlot.
       for (let s = 1; s <= 6; s++) {
         await new Promise((r) => setTimeout(r, 280));
@@ -168,10 +168,11 @@
       </p>
       <div class="bg-[#0d1117] border border-[#21262d] rounded-md p-2 space-y-1" data-testid="cm-dec-fields">
         <div class="text-[10px] text-[#484f58] font-mono mb-1">decoded fields:</div>
-        {#each result.fields as [k, v] (k)}
+        {#each result.triples as [t, n, c] (n)}
           <div class="text-[11px]">
-            <span class="text-[#58a6ff] font-mono">{k}:</span>
-            <span class="text-[#e6edf3] break-all">{v}</span>
+            <span class="text-[#a371f7] font-mono text-[9px] mr-1">{t}</span>
+            <span class="text-[#58a6ff] font-mono">{n}:</span>
+            <span class="text-[#e6edf3] break-all">{c}</span>
           </div>
         {/each}
       </div>

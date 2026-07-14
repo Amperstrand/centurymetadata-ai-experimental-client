@@ -27,7 +27,7 @@
     step = 5;
     await new Promise(r => setTimeout(r, 300));
 
-    const result = await encodeRecord(keys, title, content, 0n);
+    const result = await encodeRecord(keys, [['text', title, content]], 0n);
     debug = result.debug;
 
     step = 6;
