@@ -31,14 +31,17 @@
     { id: 'overview', num: 1, label: 'The Big Picture', icon: '🌍' },
     { id: 'keys', num: 2, label: 'Keys & Identity', icon: '🔑' },
     { id: 'record', num: 3, label: 'Record Anatomy', icon: '📦' },
-    { id: 'encryption', num: 4, label: 'Encryption', icon: '🔐' },
-    { id: 'decryption', num: 5, label: 'Decryption', icon: '🔓' },
-    { id: 'security', num: 6, label: 'Security Demos', icon: '🛡️' },
-    { id: 'whyhybrid', num: 7, label: 'Why Hybrid', icon: '🧬' },
-    { id: 'gotchas', num: 8, label: 'Browser Crypto', icon: '🐞' },
-    { id: 'nodevsbrowser', num: 9, label: 'Node vs Browser', icon: '🔄' },
-    { id: 'bundle', num: 10, label: 'The Bundle', icon: '🌐' },
-    { id: 'playground', num: 11, label: 'Try It Yourself', icon: '🎮' },
+    { id: 'recordtypes', num: 4, label: 'Record Types', icon: '🏷️' },
+    { id: 'slotpacking', num: 5, label: 'Slot Packing', icon: '🗜️' },
+    { id: 'encryption', num: 6, label: 'Encryption', icon: '🔐' },
+    { id: 'decryption', num: 7, label: 'Decryption', icon: '🔓' },
+    { id: 'security', num: 8, label: 'Security Demos', icon: '🛡️' },
+    { id: 'whyhybrid', num: 9, label: 'Why Hybrid', icon: '🧬' },
+    { id: 'gotchas', num: 10, label: 'Browser Crypto', icon: '🐞' },
+    { id: 'nodevsbrowser', num: 11, label: 'Node vs Browser', icon: '🔄' },
+    { id: 'bundle', num: 12, label: 'The Bundle', icon: '🌐' },
+    { id: 'xorpir', num: 13, label: 'XOR Privacy', icon: '🕵️' },
+    { id: 'playground', num: 14, label: 'Try It Yourself', icon: '🎮' },
   ];
 
   function handleDerive() {
@@ -302,8 +305,9 @@ BIP-39 Seed
 │
 └── m/0x44315441'/0'            <span class="text-[#a371f7]">→ centurymetadata ("D1TA")</span>
     ├── /0'  Writer keypair     <span class="text-[#58a6ff]">→ BIP-340 Schnorr signing</span>
-    ├── /1'  Reader secp256k1   <span class="text-[#58a6ff]">→ ECDH key exchange</span>
-    └── /3'  Reader ML-KEM seed <span class="text-[#58a6ff]">→ Post-quantum encapsulation</span>
+    │   ├── /1'  Reader secp256k1   <span class="text-[#58a6ff]">→ ECDH key exchange</span>
+    │   ├── /2'  Writer ML-KEM seed <span class="text-[#d29922]">→ Post-quantum writer identity</span>
+    │   └── /3'  Reader ML-KEM seed <span class="text-[#58a6ff]">→ Post-quantum encapsulation</span>
               </pre>
             </div>
 
@@ -371,7 +375,41 @@ BIP-39 Seed
         </div>
       </div>
 
-      <!-- Section 4: Encryption Pipeline -->
+      <!-- Section 4: Record Types -->
+      <div id="cm-section-recordtypes" class="scroll-mt-6">
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🏷️</span>
+            <h2 class="text-xl font-bold text-[#e6edf3]">Bitcoin Record Types</h2>
+          </div>
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
+            centurymetadata stores typed records — not arbitrary blobs. The test server validates each record's CONTENTS
+            against its TYPE. Try editing the examples below and see the validation happen in real-time.
+          </p>
+          {#await import('./CmRecordTypes.svelte')}
+            <div class="flex items-center gap-3 py-8 justify-center"><div class="w-5 h-5 rounded-full border-2 border-[#21262d] border-t-[#58a6ff] animate-spin"></div><span class="text-xs text-[#8b949e]">Loading...</span></div>
+          {:then module}<module.default />{/await}
+        </div>
+      </div>
+
+      <!-- Section 5: Slot Packing -->
+      <div id="cm-section-slotpacking" class="scroll-mt-6">
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🗜️</span>
+            <h2 class="text-xl font-bold text-[#e6edf3]">Slot Packing</h2>
+          </div>
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
+            How much Bitcoin data fits in one 8192-byte slot? Add and remove records, and watch the gzip-compressed
+            size fill the 6487-byte budget in real-time.
+          </p>
+          {#await import('./CmSlotPacking.svelte')}
+            <div class="flex items-center gap-3 py-8 justify-center"><div class="w-5 h-5 rounded-full border-2 border-[#21262d] border-t-[#58a6ff] animate-spin"></div><span class="text-xs text-[#8b949e]">Loading...</span></div>
+          {:then module}<module.default />{/await}
+        </div>
+      </div>
+
+      <!-- Section 6: Encryption Pipeline -->
       <div id="cm-section-encryption" class="scroll-mt-6">
         <div class="space-y-4">
           <div class="flex items-center gap-3">
@@ -534,7 +572,24 @@ BIP-39 Seed
         </div>
       </div>
 
-      <!-- Section 8: Playground -->
+      <!-- Section 13: XOR Privacy -->
+      <div id="cm-section-xorpir" class="scroll-mt-6">
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🕵️</span>
+            <h2 class="text-xl font-bold text-[#e6edf3]">XOR Privacy Retrieval</h2>
+          </div>
+          <p class="text-sm text-[#b1bac4] leading-relaxed">
+            When you fetch your record, the server shouldn't know which slot is yours. Watch how two complementary
+            bitmask queries to two servers reveal only your record — without either server learning which one you wanted.
+          </p>
+          {#await import('./CmXorPir.svelte')}
+            <div class="flex items-center gap-3 py-8 justify-center"><div class="w-5 h-5 rounded-full border-2 border-[#21262d] border-t-[#58a6ff] animate-spin"></div><span class="text-xs text-[#8b949e]">Loading...</span></div>
+          {:then module}<module.default />{/await}
+        </div>
+      </div>
+
+      <!-- Section 14: Playground -->
       <div id="cm-section-playground" class="scroll-mt-6">
         <div class="space-y-4">
           <div class="flex items-center gap-3">

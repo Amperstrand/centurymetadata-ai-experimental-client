@@ -4,12 +4,14 @@ import { waitForApp, toSection, base } from '../helpers';
 const BASE = base();
 
 test.describe('CenturyMetadata — section content', () => {
-  test('CM-20: all 11 sections render their heading', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+  test('CM-20: all 14 sections render their heading', async ({ page }) => {
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     const headings: Record<string, string> = {
       overview: 'The Big Picture',
       keys: 'Keys & Identity',
       record: 'Record Anatomy',
+      recordtypes: 'Bitcoin Record Types',
+      slotpacking: 'Slot Packing',
       encryption: 'How Encryption Works',
       decryption: 'How Decryption Works',
       security: 'Security Demos',
@@ -17,6 +19,7 @@ test.describe('CenturyMetadata — section content', () => {
       gotchas: 'Browser Crypto Gotchas',
       nodevsbrowser: 'Node vs Browser',
       bundle: 'The Bundle System',
+      xorpir: 'XOR Privacy Retrieval',
       playground: 'Try It Yourself',
     };
     for (const [id, text] of Object.entries(headings)) {
@@ -106,6 +109,7 @@ test.describe('CenturyMetadata — section content', () => {
     expect(text).toContain("m/0x44315441'/0'");
     expect(text).toContain("/0'  Writer keypair");
     expect(text).toContain("/1'  Reader secp256k1");
+    expect(text).toContain("/2'  Writer ML-KEM seed");
     expect(text).toContain("/3'  Reader ML-KEM seed");
   });
 
