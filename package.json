@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:roundtrip": "node test/roundtrip.mjs",
+    "test:unit": "node test/unit-tests.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {
