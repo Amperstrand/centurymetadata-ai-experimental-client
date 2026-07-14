@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { preambleText, preambleLength } from '../lib/centurymetadata';
+
   let selectedField = $state<string | null>('sig');
 
   interface Field {
@@ -151,5 +153,33 @@
       Anyone scanning the bundle can see <em>who</em> wrote a record, <em>who</em> it's for, and <em>what generation</em> it is —
       but the actual content is cryptographically opaque.
     </p>
+  </div>
+
+  <!-- Preamble: self-documenting header -->
+  <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
+    <div class="flex items-center gap-2">
+      <span class="text-lg">📜</span>
+      <h3 class="text-sm font-semibold text-[#e6edf3]">The Preamble: a self-documenting record</h3>
+    </div>
+    <p class="text-[11px] text-[#b1bac4] leading-relaxed">
+      Every centurymetadata record begins with a human-readable <strong class="text-[#e6edf3]">preamble</strong> — a
+      text header that describes the entire format. A future developer who finds this record in 100 years can understand
+      how to decode it <em>just from the preamble itself</em>. No external documentation needed. The server strips the
+      preamble before storing the 8192-byte slot, but it validates the record matches this specification on upload.
+    </p>
+    <details>
+      <summary class="text-[10px] text-[#58a6ff] cursor-pointer hover:underline">Show full preamble text ({preambleLength()} bytes)</summary>
+      <pre data-testid="cm-preamble" class="text-[9px] text-[#8b949e] font-mono leading-relaxed overflow-x-auto bg-[#0d1117] rounded-md p-3 mt-2 whitespace-pre-wrap">{preambleText()}</pre>
+    </details>
+    <div class="grid grid-cols-2 gap-3 text-center">
+      <div class="bg-[#0d1117] rounded-md p-2">
+        <div class="text-sm font-bold text-[#a371f7]">{preambleLength()}</div>
+        <div class="text-[9px] text-[#484f58]">preamble bytes (uploaded, not stored)</div>
+      </div>
+      <div class="bg-[#0d1117] rounded-md p-2">
+        <div class="text-sm font-bold text-[#58a6ff]">8192</div>
+        <div class="text-[9px] text-[#484f58]">slot bytes (stored in bundle)</div>
+      </div>
+    </div>
   </div>
 </div>

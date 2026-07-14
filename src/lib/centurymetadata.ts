@@ -160,7 +160,7 @@ async function aesCtrDecrypt(key: Uint8Array, data: Uint8Array): Promise<Uint8Ar
   return new Uint8Array(decrypted);
 }
 
-const PREAMBLE = (() => {
+export const PREAMBLE = (() => {
   const verheader = new TextEncoder().encode('centurymetadata v1\0');
   const bodyStr =
     'SIG[64]|WRITER_PUBKEY[33]|READER_ID[32]|GEN[8]|MLKEM_CT[1568]|AES[6487]\n\n' +
@@ -560,6 +560,24 @@ export async function scanNetwork(): Promise<{ slots: SlotPublic[]; stats: Netwo
       uniqueReaders: readers.size,
     },
   };
+}
+
+export function checkSignature(slot: Uint8Array): boolean {
+  if (slot.length < FULL_LENGTH) return false;
+  const sig = slot.subarray(0, 64);
+  const writerPub = slot.subarray(64, 97);
+  const contentBytes = slot.subarray(64);
+  const prehash = taggedHash(BIP340_TAG, contentBytes);
+  const writerXOnly = writerPub.subarray(1, 33);
+  return schnorr.verify(sig, prehash, writerXOnly);
+}
+
+export function preambleText(): string {
+  return new TextDecoder().decode(PREAMBLE);
+}
+
+export function preambleLength(): number {
+  return PREAMBLE.length;
 }
 
 export function writerToColor(writerPubkeyHex: string): string {

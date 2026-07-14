@@ -82,6 +82,10 @@
         <div class="text-[#a371f7] font-mono text-[10px] mb-1">Buffer → Uint8Array</div>
         <div class="text-[#8b949e]">No <code class="text-[#f85149]">Buffer</code> in the browser — every <code class="text-[#f85149]">Buffer.concat</code>/<code class="text-[#f85149]">Buffer.alloc</code> becomes a manual <code class="text-[#3fb950]">concatBytes(...)</code> / <code class="text-[#3fb950]">new Uint8Array(n)</code>.</div>
       </div>
+      <div class="bg-[#0d1117] rounded-md p-2.5 border border-[#21262d]">
+        <div class="text-[#a371f7] font-mono text-[10px] mb-1">gzip OS byte (byte 9)</div>
+        <div class="text-[#8b949e]">gzip's header stamps an <strong class="text-[#f85149]">OS byte</strong> at offset 9: <code class="text-[#f85149]">3</code> on Linux, <code class="text-[#f85149]">19</code> on macOS, <code class="text-[#f85149]">255</code> "unknown". Without forcing it, the same input produces <strong>different bytes on different platforms</strong>. The fix: <code class="text-[#3fb950]">result[9] = 0xff</code> after compression, matching the Python reference's <code class="text-[#3fb950]">ret[:9] + b'\xff' + ret[10:]</code>.</div>
+      </div>
     </div>
   </div>
 </div>

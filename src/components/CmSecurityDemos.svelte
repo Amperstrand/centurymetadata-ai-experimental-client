@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { encodeRecord, decodeSlot, deriveCmKeys, toHex } from '../lib/centurymetadata';
+  import { encodeRecord, decodeSlot, deriveCmKeys, toHex, checkSignature } from '../lib/centurymetadata';
   import type { CmKeys } from '../lib/centurymetadata';
 
   let { keys }: { keys: CmKeys } = $props();
@@ -41,6 +41,7 @@
   // ---- Wrong-reader demo (NO forced decode — byte comparison only) ----
   let wrongResult = $state<string | null>(null);
   let wrongChecking = $state(false);
+  let pubVerifyResult = $state<string | null>(null);
 
   async function runWrongReader() {
     wrongChecking = true;
@@ -129,6 +130,32 @@
     </button>
     {#if wrongResult}
       <pre data-testid="cm-wrong-reader-result" class="text-[10px] font-mono whitespace-pre-wrap break-all bg-[#0d1117] border border-[#21262d] rounded-md p-2 {wrongResult.startsWith('reader_id MISMATCH') ? 'text-[#d29922]' : 'text-[#f85149]'}">{wrongResult}</pre>
+    {/if}
+  </div>
+
+  <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
+    <div class="flex items-center gap-2">
+      <span class="text-lg">🔓</span>
+      <h3 class="text-sm font-semibold text-[#e6edf3]">Public verification (no keys needed)</h3>
+    </div>
+    <p class="text-xs text-[#b1bac4] leading-relaxed">
+      The BIP-340 signature covers the <strong class="text-[#e6edf3]">cleartext fields</strong> (writer, reader_id, gen,
+      ML-KEM ciphertext, AES payload). Anyone who has the slot bytes can verify the signature — <em>without</em> the
+      reader's private keys. This means integrity is publicly verifiable, even though confidentiality is private.
+    </p>
+    <button
+      onclick={async () => {
+        pubVerifyResult = null;
+        const enc = await encodeRecord(keys, [['text', 'verify demo', 'check without keys']], 0n);
+        pubVerifyResult = checkSignature(enc.slot) ? '✓ signature VALID — verified without any private keys' : '✗ signature INVALID';
+      }}
+      data-testid="cm-pubverify-run"
+      class="px-3 py-1.5 bg-[#1f6feb] hover:bg-[#388bfd] text-white rounded-md text-[11px] font-medium transition-colors"
+    >▶ Verify signature without decrypting</button>
+    {#if pubVerifyResult}
+      <div data-testid="cm-pubverify-result" class="text-[11px] font-mono bg-[#0d1117] rounded px-2 py-1 {pubVerifyResult.startsWith('✓') ? 'text-[#3fb950]' : 'text-[#f85149]'}">
+        {pubVerifyResult}
+      </div>
     {/if}
   </div>
 
