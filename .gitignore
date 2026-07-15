@@ -8,3 +8,6 @@ test/playwright/screenshots/
 test/playwright/report/
 *.log
 .DS_Store
+.omo/
+.playwright-mcp/
+dashboard-*.png
