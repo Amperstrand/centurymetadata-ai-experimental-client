@@ -90,8 +90,9 @@
   <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4">
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-sm font-semibold text-[#e6edf3]">1024-slot bundle</h3>
-      <span class="text-[10px] text-[#484f58]">click an occupied cell to inspect</span>
+      <span class="text-[10px] text-[#484f58]">scroll horizontally ←→ · click occupied cell</span>
     </div>
+    <p class="text-[10px] text-[#484f58] md:hidden mb-2">↔ Pinch or scroll to explore the grid. Best viewed on desktop.</p>
     <div class="overflow-x-auto">
       <div
         data-testid="cm-slot-grid"

@@ -161,7 +161,7 @@
     </div>
 
     <!-- Main content -->
-    <div class="flex-1 min-w-0 space-y-16 pb-20 md:pb-0">
+    <div class="flex-1 min-w-0 space-y-12 md:space-y-16 pb-24 md:pb-0 px-1 sm:px-0">
       <!-- Section 1: Overview -->
       <div id="cm-section-overview" class="scroll-mt-6">
         <div class="space-y-4">
@@ -178,8 +178,9 @@
           </p>
 
           <!-- Visual system diagram -->
-          <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-6 my-4">
-            <pre class="text-[10px] sm:text-xs text-[#b1bac4] font-mono leading-relaxed overflow-x-auto text-center">
+          <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 sm:p-6 my-4 overflow-x-auto">
+            <p class="text-[10px] text-[#484f58] md:hidden mb-2">↔ Scroll horizontally to read the full diagram.</p>
+            <pre class="text-[11px] sm:text-xs text-[#b1bac4] font-mono leading-relaxed whitespace-pre">
 ┌─────────────────────────────────────────────────────────────────┐
 │                    BIP-39 SEED PHRASE                            │
 │          "abandon abandon abandon ... about"                     │
