@@ -76,9 +76,8 @@
   }
 </script>
 
-<div class="space-y-4 sm:space-y-6">
-  <!-- Tamper -->
-  <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
+<div class="space-y-6 sm:space-y-6">
+  <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-4">
     <div class="flex items-center gap-2">
       <span class="text-lg">🔍</span>
       <h3 class="text-sm font-semibold text-[#e6edf3]">Tamper detection (integrity)</h3>
@@ -109,8 +108,7 @@
     {/if}
   </div>
 
-  <!-- Wrong reader -->
-  <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
+  <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-4">
     <div class="flex items-center gap-2">
       <span class="text-lg">🕵️</span>
       <h3 class="text-sm font-semibold text-[#e6edf3]">Wrong reader (confidentiality)</h3>
@@ -133,7 +131,7 @@
     {/if}
   </div>
 
-  <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
+  <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-4">
     <div class="flex items-center gap-2">
       <span class="text-lg">🔓</span>
       <h3 class="text-sm font-semibold text-[#e6edf3]">Public verification (no keys needed)</h3>

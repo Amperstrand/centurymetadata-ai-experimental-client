@@ -50,6 +50,10 @@ test.describe('mobile screenshots (375px)', () => {
     await mobileShot(page, 'security', async (p) => {
       await p.getByTestId('cm-tamper-run').click();
       await expect(p.getByTestId('cm-tamper-sig-status')).toBeVisible({ timeout: 15000 });
+      await p.getByTestId('cm-wrong-reader-run').click();
+      await expect(p.getByTestId('cm-wrong-reader-result')).toBeVisible({ timeout: 15000 });
+      await p.getByTestId('cm-pubverify-run').click();
+      await expect(p.getByTestId('cm-pubverify-result')).toBeVisible({ timeout: 15000 });
     });
   });
   test('mobile-whyhybrid', async ({ page }) => { await mobileShot(page, 'whyhybrid'); });

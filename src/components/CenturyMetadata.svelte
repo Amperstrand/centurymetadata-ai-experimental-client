@@ -178,43 +178,39 @@
           </p>
 
           <!-- Visual system diagram -->
-          <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 sm:p-6 my-4 overflow-x-auto">
-            <p class="text-[10px] text-[#484f58] md:hidden mb-2">↔ Scroll horizontally to read the full diagram.</p>
-            <pre class="text-[11px] sm:text-xs text-[#b1bac4] font-mono leading-relaxed whitespace-pre">
-┌─────────────────────────────────────────────────────────────────┐
-│                    BIP-39 SEED PHRASE                            │
-│          "abandon abandon abandon ... about"                     │
-└──────────────────────┬──────────────────────────────────────────┘
-                       │
-            ┌───────────┴───────────┐
-            ▼                       ▼
-   ┌─────────────────┐     ┌──────────────────────┐
-   │  NIP-06 PATH    │     │  CM "D1TA" PATH      │
-   │ m/44'/1237'/... │     │ m/0x44315441'/0'/... │
-   │                 │     │                      │
-   │  → Nostr identity│     │ → Writer key (sign)  │
-   │  → Blossom auth  │     │ → Reader secp (ECDH) │
-   │  → Cashu wallet  │     │ → Reader ML-KEM (PQ) │
-   └─────────────────┘     └──────────┬───────────┘
-                                     │
-                                     ▼
-                          ┌──────────────────────┐
-                          │   ENCRYPTED RECORD   │
-                          │                      │
-                          │  ECDH + ML-KEM + AES │
-                          │  signed with Schnorr │
-                          │  8192 bytes          │
-                          └──────────┬───────────┘
-                                     │
-                                     ▼
-                          ┌──────────────────────┐
-                          │   XOR-MASKED BUNDLE   │
-                          │                      │
-                          │  1024 slots × 8 KB   │
-                          │  = 8 MB total        │
-                          │  privacy in numbers  │
-                          └──────────────────────┘
-            </pre>
+          <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 sm:p-6 my-4">
+            <div class="space-y-3">
+              <div class="bg-[#0d1117] border border-[#58a6ff]/30 rounded-lg p-3 text-center">
+                <div class="text-[10px] text-[#484f58] mb-1">Step 1</div>
+                <div class="text-sm font-bold text-[#58a6ff]">🌱 BIP-39 Seed Phrase</div>
+                <div class="text-[10px] text-[#8b949e] font-mono mt-1">"abandon abandon abandon ... about"</div>
+              </div>
+              <div class="text-center text-[#484f58] text-lg">↓</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="bg-[#0d1117] border border-[#3fb950]/30 rounded-lg p-3">
+                  <div class="text-[10px] text-[#484f58] mb-1">Nostr path</div>
+                  <div class="text-xs font-bold text-[#3fb950]">🔗 NIP-06 Identity</div>
+                  <div class="text-[10px] text-[#8b949e] font-mono mt-1">m/44'/1237'/0'/0/0</div>
+                  <div class="text-[10px] text-[#484f58] mt-1">→ Nostr events · Blossom auth · Cashu</div>
+                </div>
+                <div class="bg-[#0d1117] border border-[#a371f7]/30 rounded-lg p-3">
+                  <div class="text-[10px] text-[#484f58] mb-1">centurymetadata path</div>
+                  <div class="text-xs font-bold text-[#a371f7]">🔑 "D1TA" Identity</div>
+                  <div class="text-[10px] text-[#8b949e] font-mono mt-1">m/0x44315441'/0'/...</div>
+                  <div class="text-[10px] text-[#484f58] mt-1">→ Writer (sign) · Reader ECDH · Reader ML-KEM</div>
+                </div>
+              </div>
+              <div class="text-center text-[#484f58] text-lg">↓</div>
+              <div class="bg-[#0d1117] border border-[#f78166]/30 rounded-lg p-3 text-center">
+                <div class="text-xs font-bold text-[#f78166]">🔐 Encrypted Record (8192 bytes)</div>
+                <div class="text-[10px] text-[#8b949e] mt-1">ECDH + ML-KEM-1024 → AES-256-CTR · Signed with BIP-340 Schnorr</div>
+              </div>
+              <div class="text-center text-[#484f58] text-lg">↓</div>
+              <div class="bg-[#0d1117] border border-[#d29922]/30 rounded-lg p-3 text-center">
+                <div class="text-xs font-bold text-[#d29922]">🌐 XOR-Masked Bundle (8 MB)</div>
+                <div class="text-[10px] text-[#8b949e] mt-1">1024 slots × 8 KB · Privacy in numbers</div>
+              </div>
+            </div>
           </div>
 
           <!-- Key concepts -->
