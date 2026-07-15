@@ -76,7 +76,7 @@
   }
 </script>
 
-<div class="space-y-6">
+<div class="space-y-4 sm:space-y-6">
   <!-- Tamper -->
   <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
     <div class="flex items-center gap-2">

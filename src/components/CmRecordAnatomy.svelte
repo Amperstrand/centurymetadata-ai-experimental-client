@@ -194,7 +194,7 @@
         <div
           onmouseenter={() => hoveredField = f.id}
           onmouseleave={() => hoveredField = null}
-          class="flex items-center gap-1.5 text-[9px] cursor-default px-2 py-0.5 rounded {hoveredField === f.id ? 'bg-[#21262d]' : ''}"
+          class="flex items-center gap-1.5 text-[10px] sm:text-[9px] cursor-default px-2 py-1 rounded {hoveredField === f.id ? 'bg-[#21262d]' : ''}"
         >
           <div class="w-2.5 h-2.5 rounded-sm" style="background: {f.color}"></div>
           <span class="font-mono {hoveredField === f.id ? 'text-[#e6edf3]' : 'text-[#8b949e]'}">{f.name}</span>
@@ -202,7 +202,7 @@
         </div>
       {/each}
     </div>
-    <div data-testid="cm-hexdump" class="bg-[#0d1117] rounded-md p-3 overflow-x-auto text-[9px] font-mono leading-relaxed">
+    <div data-testid="cm-hexdump" class="bg-[#0d1117] rounded-md p-3 overflow-x-auto text-[10px] sm:text-[9px] font-mono leading-relaxed">
       {#each hexDump as line}
         <div class="flex gap-2 whitespace-nowrap">
           <span class="text-[#484f58] select-none">{line.offset.toString(16).padStart(4, "0")}:</span>

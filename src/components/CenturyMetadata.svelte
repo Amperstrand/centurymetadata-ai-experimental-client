@@ -299,7 +299,7 @@
             <!-- BIP-32 tree visualization -->
             <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4">
               <h3 class="text-sm font-semibold text-[#e6edf3] mb-3">BIP-32 Derivation Tree</h3>
-              <pre class="text-[10px] text-[#8b949e] font-mono leading-relaxed overflow-x-auto">
+              <pre class="text-[10px] sm:text-[11px] text-[#8b949e] font-mono leading-relaxed overflow-x-auto whitespace-pre pb-2">
 BIP-39 Seed
 │
 ├── m/44'/1237'/0'/0/0          <span class="text-[#3fb950]">→ Nostr identity (NIP-06)</span>
