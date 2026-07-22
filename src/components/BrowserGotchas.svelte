@@ -12,7 +12,7 @@
     const raw = new TextEncoder().encode('bitcoin wallet labels\0test\0{"type":"tx","ref":"f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16","label":"demo"}\0');
     const gz = gzipSync(raw, { level: 9 });
     gz[4] = 0; gz[5] = 0; gz[6] = 0; gz[7] = 0;
-    const padded = new Uint8Array(100);
+    const padded = new Uint8Array(300);
     padded.set(gz);
 
     // THE BUG: fflate.gunzipSync on padded gzip data → empty Uint8Array
