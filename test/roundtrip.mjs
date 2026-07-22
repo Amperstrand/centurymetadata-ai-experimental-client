@@ -96,7 +96,7 @@ const seed = mnemonicToSeedSync(mnemonic);
 // --- 2. Derive Nostr (NIP-06) + centurymetadata keys from the same seed -----
 const hdRoot = HDKey.fromMasterSeed(seed);
 
-// NIP-06 Nostr identity (same path BlossomFlare's frontend uses).
+// NIP-06 Nostr identity (derivation path m/44'/1237'/0'/0/0 per NIP-06 spec).
 const nostrChild = hdRoot.derive("m/44'/1237'/0'/0/0");
 const nostrPrivKey = Buffer.from(nostrChild.privateKey);
 const nostrPubKeyCompressed = Buffer.from(secp256k1.getPublicKey(nostrPrivKey, true));
@@ -137,8 +137,15 @@ const mlkemSecret = Buffer.from(encap.sharedSecret); // 32
 // --- 7. AES key + encrypt the data -----------------------------------------
 const aesKey = Buffer.from(sha256(Buffer.concat([ecdhSecret, mlkemSecret]))); // 32
 
-// Data payload: title\0content\0 pairs, gzip, zero mtime (match Python mtime=0), pad to DATA_LENGTH.
-const rawData = Buffer.from('blossomflare test\0hello from blossomflare\0', 'utf8');
+// Data payload: TYPE\0NAME\0CONTENTS\0 triples (per upstream constants.py:19 + encode.py:13-19).
+// Uses 'bitcoin wallet labels' (one of the 5 accepted TYPEs per upstream validate.py:24-30)
+// with a valid BIP-329 JSONL body so the record would pass TEST_MODE content validation.
+// gzip, zero mtime (match Python mtime=0), pad to DATA_LENGTH.
+const LABELS_REF = 'f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16'; // Bitcoin genesis coinbase txid
+const rawData = Buffer.from(
+  `bitcoin wallet labels\0roundtrip test\0{"type":"tx","ref":"${LABELS_REF}","label":"hello from centurymetadata-ai-experimental-client"}\0`,
+  'utf8',
+);
 const compressed = gzipSync(rawData, { level: 9 });
 compressed[4] = 0; compressed[5] = 0; compressed[6] = 0; compressed[7] = 0; // gzip mtime field
 const padded = Buffer.alloc(DATA_LENGTH, 0);
@@ -288,22 +295,24 @@ const decipher = createDecipheriv('aes-256-ctr', decodeAesKey, Buffer.alloc(16, 
 const decryptedPadded = Buffer.concat([decipher.update(slotEncrypted), decipher.final()]);
 const decompressed = gunzipSync(decryptedPadded);
 
-// Parse title\0content\0 pairs (drop trailing empty from final \0).
+// Parse TYPE\0NAME\0CONTENTS\0 triples (drop trailing empty from final \0).
+// Per upstream decode.py:16-21: split by NUL, drop the final empty, then iterate in steps of 3.
 const parts = decompressed.toString('utf8').split('\0').filter((_, idx, arr) => !(idx === arr.length - 1 && arr[idx] === ''));
 const fields = [];
-for (let i = 0; i + 1 < parts.length; i += 2) fields.push([parts[i], parts[i + 1]]);
+for (let i = 0; i + 2 < parts.length; i += 3) fields.push([parts[i], parts[i + 1], parts[i + 2]]);
 
 console.log('  generation:                 ', Number(slotGen.readBigInt64BE()));
-console.log('  decoded fields:');
-for (const [k, v] of fields) console.log(`    ${k}: ${v}`);
+console.log('  decoded triples:');
+for (const [t, n, c] of fields) console.log(`    type=${t}  name=${n}  contents=${c.slice(0, 60)}${c.length > 60 ? '…' : ''}`);
 
 // --- 14. Summary -----------------------------------------------------------
 const roundTripOk =
   sigValid &&
   slotReaderId.equals(readerId) &&
   fields.length === 1 &&
-  fields[0][0] === 'blossomflare test' &&
-  fields[0][1] === 'hello from blossomflare';
+  fields[0][0] === 'bitcoin wallet labels' &&
+  fields[0][1] === 'roundtrip test' &&
+  fields[0][2].includes(LABELS_REF);
 
 console.log('');
 console.log('=== BRIDGE SUMMARY (one mnemonic, two ecosystems) ===');

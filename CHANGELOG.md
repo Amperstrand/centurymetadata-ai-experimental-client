@@ -44,7 +44,7 @@ Spec-conformance + attribution pass against upstream master HEAD `7946c80`
   contract is present, so future drift is caught at CI time.
 
 ### Changed
-- **PREAMBLE constant** in `src/lib/centurymetadata.ts:181-198` and
+- **PREAMBLE constant** in `src/lib/centurymetadata.ts:181-203` and
   `test/roundtrip.mjs:18-41` now mirrors upstream `constants.py:1-19` byte-exact
   — `DATA: gzip([TYPE\0NAME\0CONTENTS\0]+)…` form, matching upstream commit
   [`c750c08`](https://github.com/rustyrussell/centurymetadata/commit/c750c08)

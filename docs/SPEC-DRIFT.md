@@ -32,7 +32,9 @@ latest `master` HEAD. As of 2026-07-22 it serves the pre-2026-07-08 spec:
 **Implication for `npm run test:roundtrip`**: the live round-trip test
 **currently fails** with HTTP 400 "Incorrect preamble" because our PREAMBLE
 matches master HEAD, not the lagging deployment. This is correct behaviour:
-the test pins spec conformance with master, and will start passing again the
+the test pins spec conformance with master (both the PREAMBLE text constant
+and the data payload now use the upstream-correct TYPE\0NAME\0CONTENTS\0
+triples form per commit `c750c08`), so it will start passing again the
 moment the upstream operator redeploys testapi at HEAD.
 
 To verify crypto correctness end-to-end against the lagging deployment, use a

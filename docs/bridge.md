@@ -6,14 +6,16 @@
 
 [centurymetadata](https://centurymetadata.org) is a post-quantum key-value store by [Rusty Russell](https://github.com/rustyrussell). Records are encrypted with hybrid cryptography — classical secp256k1 ECDH combined with post-quantum ML-KEM-1024 (FIPS 203) — and stored in XOR-masked bundles on a central server. Only the holder of the correct private keys can find and decrypt their own records.
 
-BlossomFlare bridges Nostr and centurymetadata by deriving both identity systems from a single BIP-39 mnemonic. This means a user who logs into BlossomFlare with a seed phrase already has a centurymetadata identity — no separate key management required.
+This client bridges Nostr and centurymetadata by deriving both identity systems from a single BIP-39 mnemonic (a concept originally prototyped in the parent BlossomFlare project). A user who logs in with a seed phrase already has a centurymetadata identity — no separate key management required.
+
+> **Note**: This repo (`centurymetadata-ai-experimental-client`) is a read-only learning client extracted from BlossomFlare. The bridge concepts below were designed for BlossomFlare; they are NOT implemented here.
 
 ## Key Derivation
 
 ```
 BIP-39 Seed
 ├── m/44'/1237'/0'/0/0           → Nostr identity (NIP-06)
-│   └── Used for Blossom auth, Nostr events
+│   └── Used for Nostr events (NIP-06 identity)
 │
 └── m/0x44315441'/0'             → centurymetadata ("D1TA" purpose)
     ├── /0' → Writer keypair     → BIP-340 Schnorr signing
@@ -73,17 +75,19 @@ Per upstream `python/centurymetadata/decode.py:76-92` (`decode()`):
 
 ```
 Browser (Svelte SPA)
-├── frontend/src/lib/centurymetadata.ts    Encode/decode/gzip/crypto (Web Crypto + fflate + @noble)
-├── frontend/src/components/CenturyMetadata.svelte   8-section interactive explorer
-│      (overview, keys, record anatomy, encryption, decryption, security demos, bundle, playground)
-├── frontend/src/components/CmRecordAnatomy.svelte      Section 3: clickable 8192-byte slot layout
-├── frontend/src/components/CmEncryptionPipeline.svelte Section 4: animated 6-step encode visualizer
-├── frontend/src/components/CmDecryptionPipeline.svelte Section 5: animated 6-step decode visualizer (decodeSlot)
-├── frontend/src/components/CmSecurityDemos.svelte      Section 6: tamper-detection + wrong-reader demos
-├── frontend/src/components/CmBundleSystem.svelte       Section 7: 1024-cell XOR bundle grid + network sample
-├── frontend/src/components/CmPlayground.svelte         Section 8: write/fetch/decode round-trip (real test API)
+├── src/lib/centurymetadata.ts                   Encode/decode/gzip/crypto (Web Crypto + fflate + @noble)
+├── src/components/CenturyMetadata.svelte        14-section interactive explorer
+│      (overview, keys, record anatomy, record types, slot packing, encryption,
+│       decryption, security demos, why hybrid, browser crypto, node vs browser,
+│       bundle, XOR privacy, playground)
+├── src/components/CmRecordAnatomy.svelte         Section 3: clickable 8192-byte slot layout
+├── src/components/CmEncryptionPipeline.svelte    Section 6: animated 6-step encode visualizer
+├── src/components/CmDecryptionPipeline.svelte    Section 7: animated 6-step decode visualizer (decodeSlot)
+├── src/components/CmSecurityDemos.svelte         Section 8: tamper-detection + wrong-reader demos
+├── src/components/CmBundleSystem.svelte          Section 12: 1024-cell XOR bundle grid + network sample
+├── src/components/CmPlayground.svelte            Section 14: write/fetch/decode round-trip (real test API)
 │
-└── /cm/api/v1/*  ──→  Worker Proxy (src/routes/centurymetadata.ts)
+└── /cm/api/v1/*  ──→  Pages Function proxy (functions/cm/[[path]].ts)
                         │
                         └──→  https://testapi.centurymetadata.org/api/v1/*
                               (no CORS — proxy adds Access-Control-Allow-Origin: *)

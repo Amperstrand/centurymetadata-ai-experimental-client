@@ -44,7 +44,7 @@ is a derivative work of the following upstream files:
   - examples/EXAMPLES.md                   (XOR-PIR retrieval concept)
   - vars / README.md                       (protocol specification)
 
-The byte-exact PREAMBLE constant in src/lib/centurymetadata.ts:156-178 and
+The byte-exact PREAMBLE constant in src/lib/centurymetadata.ts:181-203 and
 test/roundtrip.mjs:18-41 is a verbatim mirror of upstream constants.py.
 
 Underlying cryptographic primitives are provided by the following libraries,

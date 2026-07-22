@@ -7,9 +7,9 @@
   let fixedText = $state('');
 
   function runDemo() {
-    // Reproduces the gunzip-on-padded-data bug (title\0content\0 is just demo data)
+    // Reproduces the gunzip-on-padded-data bug (type\0name\0contents\0 is just demo data)
     // then zero-pad to a fixed length (centurymetadata pads AES to 6487 bytes).
-    const raw = new TextEncoder().encode('title\0content\0');
+    const raw = new TextEncoder().encode('bitcoin wallet labels\0test\0{"type":"tx","ref":"f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16","label":"demo"}\0');
     const gz = gzipSync(raw, { level: 9 });
     gz[4] = 0; gz[5] = 0; gz[6] = 0; gz[7] = 0;
     const padded = new Uint8Array(100);

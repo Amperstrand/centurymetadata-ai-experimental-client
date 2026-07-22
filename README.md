@@ -72,7 +72,7 @@ docs/bridge.md                        design notes (Nostr ↔ centurymetadata br
 ## Known limitations
 
 - All data goes to the public `testapi.centurymetadata.org` with the all-zeros authtoken — **no production CM API exists yet** (upstream).
-- `scanNetwork()` only probes slot 0 of each bundle directory; the grid is a sample, not a full network view.
+- `scanNetwork()` only probes bundle 0 of each directory; the grid is a sample, not a full network view.
 - Single shared 8 MB bundle; O(N) slot scan.
 - Post-quantum (`@noble/post-quantum`, ~9 KB) is bundled — it's the whole point.
 - **Why Cloudflare Pages (not GitHub Pages)?** `testapi.centurymetadata.org` sends zero CORS headers, so direct browser `fetch()` from any origin is blocked by the browser's same-origin policy. This app requires a server-side proxy (`functions/cm/[[path]].ts`) that adds `Access-Control-Allow-Origin: *` to the upstream response. GitHub Pages is static-only (no server-side processing), so it cannot host this proxy. Cloudflare Pages Functions provide the server-side execution environment needed. Migrating to GitHub Pages would require splitting the deployment into GitHub Pages (SPA) + a separate Cloudflare Worker (proxy) = two deployments instead of one.

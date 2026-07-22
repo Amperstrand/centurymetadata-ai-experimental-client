@@ -14,7 +14,7 @@
     onRefresh: () => void;
   } = $props();
 
-  // scanNetwork() probes slot 0 of each bundle directory, so networkSlots is
+  // scanNetwork() probes bundle 0 of each directory (fetchxor with bitmask[0]=1), so networkSlots is
   // sparse (a sample). Build an index->occupied-slot map; the grid renders all
   // 1024 cells and colours the few occupied ones.
   const occupiedByIndex = $derived.by(() => {

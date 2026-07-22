@@ -1,7 +1,7 @@
 /**
  * centurymetadata browser-compatible encode/decode.
  *
- * Ports the Node round-trip test (tests/centurymetadata-roundtrip.mjs) to use
+ * Ports the Node round-trip test (test/roundtrip.mjs) to use
  * Web Crypto API (AES-CTR), fflate (gzip/inflate), and @noble libs.
  *
  * EXPERIMENTAL / PROOF-OF-CONCEPT — not for production use.
@@ -41,11 +41,14 @@
  *
  * == Bundle retrieval ==
  *
- * Records are stored in 8192-byte "slots" within bundles. Bundles are served via
- * POST /api/v1/fetchxor/{directory} with a 128-byte bitmask selecting which slots
- * to include. The server XORs selected slots together and returns the result.
- * For a single-bit bitmask, you get the raw slot. The client scans for its
- * reader_id at offset 97 (SIG[64] + WRITER_PUBKEY[33]) in each slot.
+ * Records are stored in 8192-byte "slots" within bundles. Each bundle holds up
+ * to 1024 slots (1024 × 8192 = 8 MB). Bundles are served via POST
+ * /api/v1/fetchxor/{directory} with a 128-byte bitmask selecting which bundles
+ * to include (one bit per bundle in the directory, per upstream README
+ * "Retrieving Entries"). The server XORs selected bundles together and returns
+ * the result (always 8 MB). For a single-bit bitmask, you get the raw bundle
+ * (1024 × 8192-byte slots). The client scans for its reader_id at offset 97
+ * (SIG[64] + WRITER_PUBKEY[33]) in each slot.
  *
  * == Browser-specific notes ==
  *
@@ -58,7 +61,7 @@
  *
  * @see https://centurymetadata.org
  * @see https://testapi.centurymetadata.org
- * @see tests/centurymetadata-roundtrip.mjs (Node reference implementation)
+ * @see test/roundtrip.mjs (Node reference implementation)
  */
 
 import { ml_kem1024 } from '@noble/post-quantum/ml-kem.js';
@@ -163,6 +166,7 @@ async function aesCtrEncrypt(key: Uint8Array, data: Uint8Array): Promise<Uint8Ar
   return new Uint8Array(encrypted);
 }
 
+// Upstream provenance: decode.py:25-31 unaes (decryption counterpart of encode.py:32-38 aes).
 async function aesCtrDecrypt(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
   const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'AES-CTR' }, false, ['decrypt']);
   const decrypted = await crypto.subtle.decrypt(
@@ -364,7 +368,7 @@ export interface DecodedSlot {
   };
 }
 
-// Upstream provenance: decode.py:76-92 decode() + decode.py:34-49 split_parts() + decode.py:52-60 check_sig().
+// Upstream provenance: decode.py:76-93 decode() + decode.py:34-49 split_parts() + decode.py:52-60 check_sig().
 // Inverse of encodeRecord: split slot → verify BIP-340 sig over taggedHash(BIP340_TAG, contentBytes)
 // → ECDH(reader_secp_priv, writer_pub) → ML-KEM decapsulate → AES decrypt → decompress → split triples.
 // Returns sigValid=false on bad signature; caller decides whether to trust the parsed triples.
@@ -426,6 +430,8 @@ export async function decodeSlot(
   };
 }
 
+// Upstream provenance: README.md "Entry Creation: POST /api/v1/authorize/{READER_ID}/{WRITER}/{AUTHTOKEN}".
+// AUTHTOKEN = "0"×64 per server.py:240-243 (test API convention).
 export async function authorizeWriter(
   readerId: Uint8Array,
   writerPubKey: Uint8Array,
@@ -440,6 +446,8 @@ export async function authorizeWriter(
   return { ok: res.ok, status: res.status, text };
 }
 
+// Upstream provenance: README.md "Entry Update: POST /api/v1/update".
+// Content-Type: application/x-centurymetadata; body = preamble + 8192-byte slot = 9243 bytes.
 export async function uploadRecord(
   fullRecord: Uint8Array,
 ): Promise<{ ok: boolean; status: number; text: string }> {
@@ -452,6 +460,9 @@ export async function uploadRecord(
   return { ok: res.ok, status: res.status, text };
 }
 
+// Upstream provenance: README.md "Retrieving Entries: POST /api/v1/fetchxor/{DIRECTORY}" +
+// centurytool.py:13-52 fetch_slot(). Sets a single-bit bitmask at bundle.index to fetch that
+// bundle (1024 × 8192 = 8 MB), then scans all slots for matching reader_id at offset 97.
 export async function fetchSlots(readerId: Uint8Array): Promise<Uint8Array[]> {
   const listRes = await fetch(`${PROXY_BASE}/listbundles`);
   const bundles = await listRes.json() as { directory: string; index: number }[];
@@ -615,6 +626,8 @@ export function isSlotEmpty(slot: Uint8Array): boolean {
   return true;
 }
 
+// Upstream provenance: decode.py:34-49 split_parts() — field offsets for WRITER_PUBKEY[33],
+// READER_ID[32], GEN[8] at byte positions 64, 97, 129 respectively within the 8192-byte slot.
 export function parseSlotPublic(slot: Uint8Array, index: number): SlotPublic {
   if (isSlotEmpty(slot)) {
     return { index, occupied: false, writerPubkey: null, writerXOnly: null, readerId: null, generation: null };
@@ -638,6 +651,9 @@ export function parseSlotPublic(slot: Uint8Array, index: number): SlotPublic {
   };
 }
 
+// Upstream provenance: README.md "Listing Bundles: GET /api/v1/listbundles" +
+// "Retrieving Entries: POST /api/v1/fetchxor/{DIRECTORY}". Probes bundle 0 (bitmask[0]=1)
+// of each directory and parses the resulting 1024 × 8192-byte slots for public metadata.
 export async function scanNetwork(): Promise<{ slots: SlotPublic[]; stats: NetworkStats }> {
   const listRes = await fetch(`${PROXY_BASE}/listbundles`);
   const bundles = await listRes.json() as { directory: string; index: number }[];

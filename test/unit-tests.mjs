@@ -364,6 +364,21 @@ test('docs/bridge.md and README.md cite the upstream-correct byte counts (preamb
       `${path} still references the old preamble size 1046 / record size 9238. ` +
       'Upstream master since commit c750c08 (2026-07-08) uses 1051 / 9243.'
     );
+    // PRESENCE check: docs that cite wire-level sizes must state the upstream-correct
+    // figures, not just omit the old ones. Verified against constants.py at master HEAD.
+    if (txt.includes('PREAMBLE[')) {
+      assert.ok(
+        txt.includes('PREAMBLE[1051]'),
+        `${path} mentions PREAMBLE[...] but does not cite the upstream-correct size 1051. ` +
+        'Either add PREAMBLE[1051] or remove the bracketed annotation.'
+      );
+    }
+    if (txt.includes('bytes:')) {
+      assert.ok(
+        txt.includes('9243 bytes') || txt.includes('9243 ('),
+        `${path} mentions a byte total but does not cite 9243 (the upstream-correct full-record size).`
+      );
+    }
   }
 });
 
@@ -398,6 +413,103 @@ test('fetchSlotPrivate uses bundle.index as the XOR-PIR target bit', () => {
     /generateXorPirMasks\(\s*bundle\.index\s*\)/.test(codeOnly),
     'fetchSlotPrivate should call generateXorPirMasks(bundle.index). ' +
     'The reader_id is found by client-side scan after the bundle is recovered via XOR.'
+  );
+});
+
+console.log('\n=== SPEC DRIFT: roundtrip.mjs payload + decoder must be TYPE\\0NAME\\0CONTENTS\\0 triples ===\n');
+// Refs:
+//   upstream constants.py:19 — PREAMBLE text says DATA: gzip([TYPE\0NAME\0CONTENTS\0]+)
+//   upstream encode.py:13-19 compress() — iterates (type, name, contents) triples
+//   upstream decode.py:16-21 decompress() — asserts len(fields) % 3 == 1, iterates by 3
+//
+// A previous drift fix updated the PREAMBLE *text constant* in roundtrip.mjs to say
+// TYPE\0NAME\0CONTENTS\0, but the actual payload + parser were left in the old
+// TITLE\0CONTENTS\0 (pair) form. That produces internally inconsistent records:
+// the preamble describes triples but the data is pairs. Upstream decode.decompress
+// rejects pairs (returns None when len(fields) % 3 != 1).
+
+test('test/roundtrip.mjs encodes a TYPE\\0NAME\\0CONTENTS\\0 triple as payload (not a pair)', () => {
+  const src = readFileSync('test/roundtrip.mjs', 'utf8');
+  // The raw payload must have three NUL-separated fields ending with a trailing NUL.
+  // Pattern: TYPE\0NAME\0CONTENTS\0 where TYPE is one of the 5 accepted strings.
+  // Strategy: find the rawData assignment line(s), count \\0 occurrences.
+  // A valid triple has exactly 3 \\0 (TYPE\0NAME\0CONTENTS\0); a pair has 2.
+  const acceptedTypes = ['bitcoin psbt', 'bitcoin transaction', 'bitcoin miniscript',
+    'bitcoin output script descriptor', 'bitcoin wallet labels'];
+
+  // Find the rawData construction block.
+  const payloadMatch = src.match(/const\s+rawData\s*=\s*Buffer\.from\([\s\S]*?'utf8'/);
+  assert.ok(payloadMatch, 'Could not find `const rawData = Buffer.from(...)` in roundtrip.mjs');
+  const payloadBlock = payloadMatch[0];
+
+  // Count \\0 occurrences (each NUL separator in source text appears as the two chars \0).
+  const nulCount = (payloadBlock.match(/\\0/g) || []).length;
+  assert.ok(
+    nulCount >= 3,
+    `test/roundtrip.mjs rawData payload must contain at least 3 NUL separators (TYPE\\0NAME\\0CONTENTS\\0 triples). ` +
+    `Found ${nulCount} — this is a ${nulCount === 2 ? 'pair (pre-c750c08 form)' : 'invalid'} payload.`
+  );
+
+  // Check one of the accepted TYPEs appears in the payload.
+  const hasAcceptedType = acceptedTypes.some(t => payloadBlock.includes(t));
+  assert.ok(
+    hasAcceptedType,
+    'test/roundtrip.mjs rawData payload must use one of the 5 accepted TYPEs. ' +
+    'None found: ' + acceptedTypes.join(', ')
+  );
+
+  // Negative check: old pair form must be gone.
+  assert.ok(
+    !src.includes("'blossomflare test\\0hello from blossomflare\\0'"),
+    "test/roundtrip.mjs still references the old 'blossomflare test\\0hello from blossomflare\\0' pair payload."
+  );
+});
+
+test('test/roundtrip.mjs decoder parses triples (i += 3, not i += 2)', () => {
+  const src = readFileSync('test/roundtrip.mjs', 'utf8');
+  // The decoder must iterate parts in steps of 3 (TYPE, NAME, CONTENTS).
+  // Old pair decoder used `i += 2` and pushed [parts[i], parts[i+1]].
+  // Correct triple decoder uses `i += 3` and pushes [parts[i], parts[i+1], parts[i+2]].
+  assert.ok(
+    !/i\s*\+=\s*2/.test(src) || src.includes('i += 3'),
+    "test/roundtrip.mjs decoder must step by 3 (triples), not 2 (pairs). " +
+    "Replace `i += 2` with `i += 3` and push 3 fields per iteration."
+  );
+  assert.ok(
+    /i\s*\+=\s*3/.test(src),
+    "test/roundtrip.mjs decoder must contain `i += 3` for triple parsing."
+  );
+});
+
+console.log('\n=== SPEC DRIFT: centurymetadata.ts header docstring must say "bundles" for fetchxor bitmask ===\n');
+// Refs:
+//   upstream README.md "Retrieving Entries: POST /api/v1/fetchxor/{DIRECTORY}" —
+//   "POST a 128-byte bitmask (one bit per bundle in the directory)". The bitmask
+//   selects BUNDLES within a DIRECTORY (1024 bits). A single-bit mask returns one
+//   raw 8 MB bundle (1024 x 8192-byte slots). The same conceptual fix was already
+//   applied to CmBundleSystem.svelte:154-157 but the file-level JSDoc in
+//   centurymetadata.ts:42-48 was missed.
+
+test('src/lib/centurymetadata.ts header docstring says fetchxor bitmask selects bundles', () => {
+  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  // The "Bundle retrieval" section of the file-level JSDoc must use bundle terminology.
+  const bundleSection = src.match(/== Bundle retrieval ==[\s\S]*?==/);
+  assert.ok(bundleSection, 'Could not find == Bundle retrieval == section in centurymetadata.ts header');
+  const section = bundleSection[0];
+  assert.ok(
+    /bitmask selecting which bundles[\s\S]*?to include/.test(section),
+    'centurymetadata.ts header "Bundle retrieval" section must say "bitmask selecting which bundles to include" ' +
+    '(per upstream README "Retrieving Entries"). Currently still says "slots".'
+  );
+  assert.ok(
+    /single-bit bitmask, you get the raw bundle/.test(section),
+    'centurymetadata.ts header must say "single-bit bitmask, you get the raw bundle" ' +
+    '(a bundle is 1024 slots = 8 MB, not a single slot).'
+  );
+  assert.ok(
+    !/selecting which slots to include/.test(section) && !/XORs selected slots/.test(section),
+    'centurymetadata.ts header still uses "slots" terminology for the fetchxor bitmask. ' +
+    'The bitmask selects BUNDLES within a DIRECTORY.'
   );
 });
 
