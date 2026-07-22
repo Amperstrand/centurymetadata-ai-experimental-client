@@ -96,7 +96,7 @@ test.describe('CenturyMetadata — bundle + playground (network)', () => {
 
   test('CM-66: playground — fetch with no prior write shows empty state (for a fresh reader_id)', async ({ page }) => {
     // Use a mnemonic nobody has written to before. random 12-word phrase is unlikely to have data.
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(800);
     // Generate a unique mnemonic by tweaking the last word
     await page.getByTestId('cm-mnemonic').fill('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon');

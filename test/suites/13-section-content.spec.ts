@@ -29,7 +29,7 @@ test.describe('CenturyMetadata — section content', () => {
   });
 
   test('CM-21: overview shows the BIP-39 → two ecosystems diagram', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     const overview = page.locator('#cm-section-overview');
     await expect(overview).toContainText('BIP-39 SEED PHRASE');
     await expect(overview).toContainText('NIP-06 PATH');
@@ -83,7 +83,7 @@ test.describe('CenturyMetadata — section content', () => {
   });
 
   test('CM-25: keys section derives default identity on load', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
     const keys = page.locator('#cm-section-keys');
     // Default mnemonic is abandon×12 → identity is auto-derived onMount
@@ -100,7 +100,7 @@ test.describe('CenturyMetadata — section content', () => {
   });
 
   test('CM-26: BIP-32 derivation tree shows both NIP-06 and D1TA paths', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1000);
     const tree = page.locator('#cm-section-keys').getByText('BIP-32 Derivation Tree');
     await expect(tree).toBeVisible();
@@ -115,7 +115,7 @@ test.describe('CenturyMetadata — section content', () => {
   });
 
   test('CM-27: EXPERIMENTAL banner is visible at top', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     const banner = page.locator('h2:text("⚠ EXPERIMENTAL — LEARNING TOOL")');
     await expect(banner).toBeVisible();
     // Banner mentions centurymetadata + Rusty Russell

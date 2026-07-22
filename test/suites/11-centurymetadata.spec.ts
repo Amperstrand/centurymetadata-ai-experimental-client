@@ -6,7 +6,7 @@ test.use({ video: 'on', screenshot: 'on' });
 const BASE = process.env.SERVER || 'http://localhost:4173';
 
 async function toSection(page: Page, id: string) {
-  await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1200);
   await page.locator(`[data-testid="cm-nav-${id}"]`).click();
   await page.waitForTimeout(400);
@@ -18,7 +18,7 @@ async function shot(page: Page, name: string) {
 
 test.describe('CenturyMetadata — Explorer', () => {
   test('CM-01: page loads with banner + sticky nav', async ({ page }) => {
-    await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1200);
     await expect(page.getByText('EXPERIMENTAL').first()).toBeVisible();
     await expect(page.getByTestId('cm-nav-overview')).toBeVisible();
@@ -27,7 +27,7 @@ test.describe('CenturyMetadata — Explorer', () => {
   });
 
   test('CM-02: derive keys shows reader_id', async ({ page }) => {
-    await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1000);
     await page.getByTestId('cm-quickfill').click();
     await page.waitForTimeout(200);

@@ -5,7 +5,7 @@ test.use({ video: 'on', screenshot: 'on' });
 const BASE = process.env.SERVER || 'http://localhost:4173';
 
 async function toSection(page: Page, id: string) {
-  await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1500);
   await page.locator(`[data-testid="cm-nav-${id}"]`).click();
   await page.waitForTimeout(400);
@@ -17,7 +17,7 @@ async function shot(page: Page, name: string) {
 
 test.describe('CenturyMetadata — deeper content', () => {
   test('CM-10: guided tour starts and advances', async ({ page }) => {
-    await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
     await page.getByTestId('cm-tour-start').click();
     await expect(page.getByTestId('cm-tour-banner')).toBeVisible();
@@ -28,7 +28,7 @@ test.describe('CenturyMetadata — deeper content', () => {
   });
 
   test('CM-11: live bridge — Nostr npub renders + note signs validly', async ({ page }) => {
-    await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}#/centurymetadata`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
     // NostrIdentity renders in the overview section; npub is shown.
     await expect(page.getByText('npub').first()).toBeVisible({ timeout: 10000 });

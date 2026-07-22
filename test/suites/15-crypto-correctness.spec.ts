@@ -5,7 +5,7 @@ const BASE = base();
 
 test.describe('CenturyMetadata — crypto correctness', () => {
   test('CM-40: custom mnemonic derives a different reader_id than the default', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
     // Capture the default (abandon×12) reader_id from the dedicated "Your identity" card
     const grabReaderId = async () => {
@@ -29,7 +29,7 @@ test.describe('CenturyMetadata — crypto correctness', () => {
   });
 
   test('CM-41: invalid mnemonic produces a visible error', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(800);
     await page.getByTestId('cm-mnemonic').fill('this is not a valid mnemonic phrase');
     await page.getByTestId('cm-derive').click();
@@ -41,7 +41,7 @@ test.describe('CenturyMetadata — crypto correctness', () => {
   });
 
   test('CM-42: empty mnemonic produces a visible error', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(800);
     await page.getByTestId('cm-mnemonic').fill('');
     await page.getByTestId('cm-derive').click();
@@ -51,7 +51,7 @@ test.describe('CenturyMetadata — crypto correctness', () => {
   });
 
   test('CM-43: quickfill button restores the abandon×12 mnemonic', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(800);
     await page.getByTestId('cm-mnemonic').fill('different text');
     await page.getByTestId('cm-quickfill').click();
@@ -161,7 +161,7 @@ test.describe('CenturyMetadata — crypto correctness', () => {
   });
 
   test('CM-52: Nostr bridge — npub renders and signed note verifies', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
     // NostrIdentity is in the overview section
     const overview = page.locator('#cm-section-overview');
