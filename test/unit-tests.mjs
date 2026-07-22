@@ -513,5 +513,61 @@ test('src/lib/centurymetadata.ts header docstring says fetchxor bitmask selects 
   );
 });
 
+console.log('\n=== KNOWN KEYS SCHEME (upstream known_words.txt) ===\n');
+// Refs:
+//   upstream python/centurymetadata/server/known_keys.py + known_words.txt
+//   130 BIP-39 words qualify (single word ×12 with valid checksum).
+//   First half = self-authored, second half = example data.
+
+test('KNOWN_WORDS has exactly 130 entries', () => {
+  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  // Extract the Object.freeze([...]) block for KNOWN_WORDS
+  const match = src.match(/KNOWN_WORDS[^;]*Object\.freeze\(\[\s*([\s\S]*?)\]\)/);
+  assert.ok(match, 'KNOWN_WORDS Object.freeze array not found');
+  const words = match[1].match(/'[^']+'/g);
+  assert.ok(words, 'No quoted strings found in KNOWN_WORDS');
+  assert.equal(words.length, 130, `Expected 130 known words, found ${words.length}`);
+});
+
+test('KNOWN_WORDS includes action, agent, aim (first) and word, world, yellow (last)', () => {
+  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  assert.ok(src.includes("'action'"), 'KNOWN_WORDS must include "action" (first known word)');
+  assert.ok(src.includes("'agent'"), 'KNOWN_WORDS must include "agent"');
+  assert.ok(src.includes("'aim'"), 'KNOWN_WORDS must include "aim"');
+  assert.ok(src.includes("'word'"), 'KNOWN_WORDS must include "word"');
+  assert.ok(src.includes("'world'"), 'KNOWN_WORDS must include "world"');
+  assert.ok(src.includes("'yellow'"), 'KNOWN_WORDS must include "yellow" (last known word)');
+});
+
+test('knownWordMnemonic produces word ×12', () => {
+  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  // The function should join 12 copies of the word with spaces
+  assert.ok(
+    /function knownWordMnemonic[\s\S]*?Array\.from\(\s*\{\s*length:\s*12\s*\}/.test(src) ||
+    /function knownWordMnemonic[\s\S]*?word.*12/.test(src),
+    'knownWordMnemonic must produce a 12-word mnemonic from a single word'
+  );
+});
+
+test('isSelfAuthoredWord: first half = self-authored, second half = example data', () => {
+  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  // The function must split at the midpoint (65 for 130 words)
+  assert.ok(
+    /isSelfAuthoredWord[\s\S]*?<\s*Math\.floor\s*\(\s*KNOWN_WORDS\.length\s*\/\s*2\s*\)/.test(src),
+    'isSelfAuthoredWord must use the first-half/second-half split per upstream known_keys.py:50-55'
+  );
+});
+
+test('RECORD_EXAMPLES has all 5 accepted Bitcoin types', () => {
+  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  for (const type of ['bitcoin psbt', 'bitcoin transaction', 'bitcoin miniscript',
+                       'bitcoin output script descriptor', 'bitcoin wallet labels']) {
+    assert.ok(
+      src.includes(`'${type}'`) && src.includes(`"${type}"`) === false || src.includes(`'${type}'`),
+      `RECORD_EXAMPLES must include type "${type}"`
+    );
+  }
+});
+
 console.log(`\n${passed} passed, ${failed} failed, ${passed + failed} total`);
 process.exit(failed > 0 ? 1 : 0);

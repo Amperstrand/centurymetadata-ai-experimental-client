@@ -721,3 +721,82 @@ export function writerToColor(writerPubkeyHex: string): string {
   const b = parseInt(writerPubkeyHex.slice(6, 8), 16);
   return `rgb(${r}, ${g}, ${b})`;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Known test identities (upstream known_keys.py scheme).
+//
+// Upstream provenance: python/centurymetadata/server/known_keys.py + known_words.txt.
+// A reader identity is "known" if derived from a BIP-39 mnemonic of a single word
+// repeated 12× whose checksum is valid (~130 of 2048 words qualify). When the test
+// server runs in TEST_MODE, only known reader_ids may authorize/update records.
+// The first half (by wordlist position) are self-authored (WRITER_PUBKEY must match
+// the identity's own derived writer key); the second half are reserved for the test
+// server's pre-populated example data.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Upstream provenance: python/centurymetadata/server/known_words.txt (byte-exact).
+// 130 words whose 12× repeated form has a valid BIP-39 checksum.
+export const KNOWN_WORDS: readonly string[] = Object.freeze([
+  'action', 'agent', 'aim', 'all', 'ankle', 'announce', 'audit', 'awesome',
+  'beef', 'believe', 'blue', 'border', 'brand', 'breeze', 'bus', 'business',
+  'cannon', 'canyon', 'carry', 'cave', 'century', 'cereal', 'chronic', 'coast',
+  'convince', 'cute', 'dawn', 'dilemma', 'divorce', 'dry', 'elevator', 'else',
+  'embrace', 'enroll', 'escape', 'evolve', 'exclude', 'excuse', 'exercise',
+  'expire', 'fetch', 'fever', 'forward', 'fury', 'garment', 'gauge', 'gym',
+  'half', 'harsh', 'hole', 'hybrid', 'illegal', 'include', 'index', 'into',
+  'invest', 'involve', 'jeans', 'kick', 'kite', 'later', 'layer', 'legend',
+  'life', 'lyrics', 'margin', 'melody', 'mom', 'more', 'morning', 'nation',
+  'neck', 'neglect', 'never', 'noble', 'novel', 'obvious', 'ocean', 'oil',
+  'orphan', 'oxygen', 'pause', 'peasant', 'permit', 'piano', 'proof',
+  'pumpkin', 'question', 'real', 'report', 'rough', 'rude', 'salad', 'scale',
+  'screen', 'sea', 'seat', 'sell', 'seminar', 'seven', 'sheriff', 'siege',
+  'silver', 'soldier', 'spell', 'split', 'spray', 'stadium', 'sugar', 'sunny',
+  'sure', 'tobacco', 'tongue', 'track', 'tree', 'trouble', 'twelve', 'twice',
+  'type', 'uniform', 'useless', 'valid', 'very', 'vibrant', 'virtual', 'vocal',
+  'warrior', 'word', 'world', 'yellow',
+]);
+
+const _KNOWN_WORD_INDEX: ReadonlyMap<string, number> = new Map(
+  KNOWN_WORDS.map((w, i) => [w, i]),
+);
+
+// Upstream provenance: known_keys.py:46-47 — seed = bip39_to_seed(word × 12).
+export function knownWordMnemonic(word: string): string {
+  return Array.from({ length: 12 }, () => word).join(' ');
+}
+
+export function isKnownWord(word: string): boolean {
+  return _KNOWN_WORD_INDEX.has(word);
+}
+
+// Upstream provenance: known_keys.py:50-55 — first half self-authored, second half example data.
+export function isSelfAuthoredWord(word: string): boolean {
+  const idx = _KNOWN_WORD_INDEX.get(word);
+  if (idx === undefined) return false;
+  return idx < Math.floor(KNOWN_WORDS.length / 2);
+}
+
+// Valid Bitcoin record examples for each TYPE (for TEST_MODE-compliant writes).
+// These match the example CONTENTS in CmRecordTypes.svelte and pass upstream validate.py.
+export const RECORD_EXAMPLES: Record<string, { name: string; contents: string }> = {
+  'bitcoin psbt': {
+    name: 'unsigned tx',
+    contents: 'cHNidP8BAHUCAAAAASaBcTce3/KFHeE2a6QAHfxqcrxfHGgG7vid5hU+nQITAAAAAAD+////AomN1gUAAAAAIgAgZEsBukgROqGS8q4Q1Wx0yZ1qE//g4A4ZQ0n6fHiHWoBAAAAAAEAAAAAA6ICAu3/BwAAAAAAIgAgTSmDRIEXKnS6iczWWTiNVrG2sE5Yk1W4n2JnUg0l7pZ/v///wK6Id8CAAAAarinomJt5VlqdetH7sRSkYnVaSEkmCFjOi3h6Uh0gR8BAAAAAAEAAAAAA6ICAu3/BwAAAAAAIgAgDE+ZowK+BR0oIv5MRy0Lfs1fxR4sJt3iS7BFDKedc/v///wK6Id8CAAAAarinomJt5VlqdetH7sRSkYnVaSEkmCFjOi3h6Uh0gR8BAAAAAAEAAAAAA6ICAu3/BwAAAAAA',
+  },
+  'bitcoin transaction': {
+    name: 'genesis coinbase',
+    contents: '01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4d04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73ffffffff0100f2052a01000000434104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac00000000',
+  },
+  'bitcoin miniscript': {
+    name: 'spending policy',
+    contents: 'and_v(v:pk(02a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3),older(1000))',
+  },
+  'bitcoin output script descriptor': {
+    name: 'main wallet',
+    contents: 'wpkh([d34db33f/84h/0h/0h]xpub6BosfCnifzxcFwrSzQiqu2DBVTshkCXacvNsWGYJVVhhawA7d4R5WSWGFNbi8Aw6ZRc1brxMyWMzG3DSSSSojawudHrDrJm7VafwdeFaseB/0/*)#xz7vw3rn',
+  },
+  'bitcoin wallet labels': {
+    name: 'my labels',
+    contents: '{"type":"addr","ref":"bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4","label":"savings"}\n{"type":"tx","ref":"f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16","label":"first purchase"}',
+  },
+};

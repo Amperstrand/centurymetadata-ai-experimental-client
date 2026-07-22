@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { deriveCmKeys, toHex, scanNetwork } from '../lib/centurymetadata';
+  import {
+    deriveCmKeys, toHex, scanNetwork,
+    KNOWN_WORDS, knownWordMnemonic, isKnownWord, isSelfAuthoredWord,
+  } from '../lib/centurymetadata';
   import type { CmKeys, SlotPublic, NetworkStats } from '../lib/centurymetadata';
   import NostrIdentity from './NostrIdentity.svelte';
   import TourMode from './TourMode.svelte';
@@ -15,6 +18,7 @@
   let networkStats = $state<NetworkStats | null>(null);
   let scanning = $state(false);
   let copiedReaderId = $state(false);
+  let selectedKnownWord = $state('');
 
   async function copyReaderId() {
     if (!keys) return;
@@ -53,6 +57,12 @@
       keys = null;
       deriveError = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  function handleKnownWord() {
+    if (!selectedKnownWord || !isKnownWord(selectedKnownWord)) return;
+    mnemonic = knownWordMnemonic(selectedKnownWord);
+    handleDerive();
   }
 
   async function handleScan() {
@@ -274,12 +284,28 @@
               class="w-full bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-2 text-xs font-mono text-[#e6edf3] placeholder-[#484f58] focus:border-[#58a6ff] focus:outline-none"
               rows="2"
             ></textarea>
-            <div class="flex gap-2 flex-wrap">
+            <div class="flex gap-2 flex-wrap items-center">
               <button
                 onclick={() => { mnemonic = ABANDON_12; handleDerive(); }}
                 data-testid="cm-quickfill"
                 class="px-3 py-1.5 bg-[#21262d] hover:bg-[#30363d] text-[#58a6ff] rounded-md text-xs font-medium transition-colors"
               >⚡ Fill abandon×12</button>
+              <select
+                bind:value={selectedKnownWord}
+                onchange={handleKnownWord}
+                data-testid="cm-known-word-picker"
+                class="bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-[#8b949e] rounded-md text-xs font-medium px-2 py-1.5 focus:border-[#58a6ff] focus:outline-none"
+              >
+                <option value="">Known test word…</option>
+                {#each KNOWN_WORDS as w}
+                  <option value={w}>{w}</option>
+                {/each}
+              </select>
+              {#if selectedKnownWord && isKnownWord(selectedKnownWord)}
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-medium {isSelfAuthoredWord(selectedKnownWord) ? 'bg-[#238636]/20 text-[#3fb950] border border-[#238636]/40' : 'bg-[#1f6feb]/20 text-[#58a6ff] border border-[#1f6feb]/40'}">
+                  {isSelfAuthoredWord(selectedKnownWord) ? '✍ self-authored' : '📊 example data'}
+                </span>
+              {/if}
               <button
                 onclick={handleDerive}
                 data-testid="cm-derive"

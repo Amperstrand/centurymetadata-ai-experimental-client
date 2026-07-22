@@ -2,13 +2,15 @@
   import {
     encodeRecord, authorizeWriter, uploadRecord, fetchSlots,
     getMaxGeneration, decodeSlot, toHex,
+    ACCEPTED_TYPES, RECORD_EXAMPLES,
   } from '../lib/centurymetadata';
   import type { CmKeys, DecodedSlot } from '../lib/centurymetadata';
 
   let { keys }: { keys: CmKeys } = $props();
 
-  let title = $state('my note');
-  let content = $state('encrypted at the edge');
+  let selectedType = $state<string>('bitcoin wallet labels');
+  let recordName = $state('test record');
+  let recordContents = $state(RECORD_EXAMPLES['bitcoin wallet labels'].contents);
   let writeStatus = $state('');
   let writing = $state(false);
   let writeOk = $state<boolean | null>(null);
@@ -17,6 +19,14 @@
   let fetching = $state(false);
   let fetchError = $state('');
 
+  function handleTypeChange() {
+    const example = RECORD_EXAMPLES[selectedType];
+    if (example) {
+      recordName = example.name;
+      recordContents = example.contents;
+    }
+  }
+
   async function handleWrite() {
     writing = true;
     writeStatus = '';
@@ -24,7 +34,7 @@
     try {
       const existing = await fetchSlots(keys.readerId);
       const gen = getMaxGeneration(existing, keys.writerPubKey) + 1n;
-      const enc = await encodeRecord(keys, [['text', title, content]], gen);
+      const enc = await encodeRecord(keys, [[selectedType, recordName, recordContents]], gen);
       const auth = await authorizeWriter(keys.readerId, keys.writerPubKey);
       const up = await uploadRecord(enc.fullRecord);
       writeOk = up.ok;
@@ -73,24 +83,41 @@
   <!-- Write -->
   <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
     <h3 class="text-sm font-semibold text-[#e6edf3]">Write an encrypted record</h3>
-    <div class="grid sm:grid-cols-2 gap-3">
+    <div class="space-y-3">
       <label class="block">
-        <span class="text-[10px] text-[#8b949e] font-medium block mb-1">title</span>
-        <input
-          bind:value={title}
-          data-testid="cm-write-title"
+        <span class="text-[10px] text-[#8b949e] font-medium block mb-1">TYPE</span>
+        <select
+          bind:value={selectedType}
+          onchange={handleTypeChange}
+          data-testid="cm-write-type"
           class="w-full bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
-        />
+        >
+          {#each ACCEPTED_TYPES as t}
+            <option value={t}>{t}</option>
+          {/each}
+        </select>
       </label>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <label class="block">
+          <span class="text-[10px] text-[#8b949e] font-medium block mb-1">NAME</span>
+          <input
+            bind:value={recordName}
+            data-testid="cm-write-name"
+            class="w-full bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+          />
+        </label>
+      </div>
       <label class="block">
-        <span class="text-[10px] text-[#8b949e] font-medium block mb-1">content</span>
-        <input
-          bind:value={content}
-          data-testid="cm-write-content"
-          class="w-full bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
-        />
+        <span class="text-[10px] text-[#8b949e] font-medium block mb-1">CONTENTS</span>
+        <textarea
+          bind:value={recordContents}
+          data-testid="cm-write-contents"
+          rows="3"
+          class="w-full bg-[#0d1117] border border-[#21262d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] font-mono focus:border-[#58a6ff] focus:outline-none resize-y"
+        ></textarea>
       </label>
     </div>
+    <p class="text-[10px] text-[#484f58]">These TYPEs match what the test server validates in TEST_MODE.</p>
     <button
       onclick={handleWrite}
       disabled={writing}
