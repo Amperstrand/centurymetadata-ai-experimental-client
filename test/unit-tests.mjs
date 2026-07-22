@@ -258,6 +258,99 @@ test('N=0 and N=1 reader_ids are different', () => {
   assert.notEqual(EXPECTED.READER_ID, EXPECTED_N1.READER_ID);
 });
 
+console.log('\n=== UPSTREAM TEST VECTORS (test_vectors.json) ===\n');
+// Refs: https://github.com/rustyrussell/centurymetadata/blob/master/test_vectors.json
+// 3 vectors: N=0 (abandon), N=1 (abandon), N=2147483647 (zoo).
+// Verifies our crypto against the canonical upstream test vectors.
+
+// ML-KEM Z tag = SHA256("centurymetadata v1 mlkem-z") — constant across all vectors.
+test('ML-KEM Z tag matches upstream (SHA256 of tag string)', () => {
+  const tagHash = sha256(new TextEncoder().encode(MLKEM_Z_TAG));
+  assert.equal(toHex(tagHash), '2f9798126f0dc0361bc7cc7a5baced081394a0cf0f24184731c23349a0b402f2',
+    'MLKEM_Z_TAG hash must match upstream test_vectors.json');
+});
+
+// BIP-340 TAG = SHA256("centurymetadata v1") — constant across all vectors.
+test('BIP-340 TAG hash matches upstream', () => {
+  const tagHash = sha256(new TextEncoder().encode(BIP340_TAG));
+  assert.equal(toHex(tagHash), '420bad4c7832ad7977a3cf553d7e10360a4561ecfea1222d62e946be461034fc',
+    'BIP340_TAG hash must match upstream test_vectors.json');
+});
+
+// ML-KEM seed Z derivation: z = taggedHash("centurymetadata v1 mlkem-z", d)
+test('N=0 ML-KEM seed Z = taggedHash(MLKEM_Z_TAG, seed_D)', () => {
+  const d = fromHex(EXPECTED.READER_MLKEM_SEED_D);
+  const z = taggedHash(MLKEM_Z_TAG, d);
+  assert.equal(toHex(z), '3013b591e0ea9be09e908bc8c24300b254082450f0f852be680e42ff19330725',
+    'N=0 READER_MLKEM_SEED_Z must match upstream');
+});
+
+test('N=1 ML-KEM seed Z = taggedHash(MLKEM_Z_TAG, seed_D)', () => {
+  const d = fromHex(EXPECTED_N1.READER_MLKEM_SEED_D);
+  const z = taggedHash(MLKEM_Z_TAG, d);
+  assert.equal(toHex(z), 'd231de9cd13b8903d2d83f8c3a6b0a8329a4835e011378b812ef5dc42857c072',
+    'N=1 READER_MLKEM_SEED_Z must match upstream');
+});
+
+// N=2147483647 extreme value (vector 2 from upstream)
+console.log('\n=== N=2147483647 (extreme slot number) ===\n');
+
+const EXPECTED_NMAX = {
+  WRITER_SECP_PRIVKEY: '289858d5f6c459e5c79d341fcba50b6a32d8cae6f2593e3a7738fa2596530f56',
+  READER_SECP_PRIVKEY: 'ce9d8d4afbb0d3d2cd1250ecaa6d97189d9d7a529007075c6258673ea546f5c5',
+  READER_MLKEM_SEED_D: '133334801c425e5066fa7b55e756a9646ba0f56e02bc2a79e408e88462da3030',
+  READER_MLKEM_SEED_Z: '4ca48cb12090fca3b459ef57936ae4699d4e92d2de4659e83dd6d7ea99517696',
+  READER_ID: '2cf6ab97beb2509a65e6b86cfa07305f9d5282440e03e601e6b967aeb9dc2068',
+};
+const NMAX = 2147483647;
+const MNEMONIC_ZOO = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo abstract';
+
+test('N=2147483647 writer privkey matches upstream vector 2', () => {
+  const zooSeed = mnemonicToSeedSync(MNEMONIC_ZOO);
+  const zooHd = HDKey.fromMasterSeed(zooSeed);
+  const p = zooHd.deriveChild(harden(CM_PURPOSE));
+  const c = p.deriveChild(harden(NMAX));
+  const w = c.deriveChild(harden(0));
+  assert.equal(toHex(w.privateKey), EXPECTED_NMAX.WRITER_SECP_PRIVKEY);
+});
+
+test('N=2147483647 reader secp privkey matches upstream vector 2', () => {
+  const zooSeed = mnemonicToSeedSync(MNEMONIC_ZOO);
+  const zooHd = HDKey.fromMasterSeed(zooSeed);
+  const p = zooHd.deriveChild(harden(CM_PURPOSE));
+  const c = p.deriveChild(harden(NMAX));
+  const r = c.deriveChild(harden(1));
+  assert.equal(toHex(r.privateKey), EXPECTED_NMAX.READER_SECP_PRIVKEY);
+});
+
+test('N=2147483647 reader ML-KEM seed D matches upstream vector 2', () => {
+  const zooSeed = mnemonicToSeedSync(MNEMONIC_ZOO);
+  const zooHd = HDKey.fromMasterSeed(zooSeed);
+  const p = zooHd.deriveChild(harden(CM_PURPOSE));
+  const c = p.deriveChild(harden(NMAX));
+  const m = c.deriveChild(harden(3));
+  assert.equal(toHex(m.privateKey), EXPECTED_NMAX.READER_MLKEM_SEED_D);
+});
+
+test('N=2147483647 ML-KEM seed Z matches upstream vector 2', () => {
+  const d = fromHex(EXPECTED_NMAX.READER_MLKEM_SEED_D);
+  const z = taggedHash(MLKEM_Z_TAG, d);
+  assert.equal(toHex(z), EXPECTED_NMAX.READER_MLKEM_SEED_Z);
+});
+
+test('N=2147483647 reader_id matches upstream vector 2', () => {
+  const zooSeed = mnemonicToSeedSync(MNEMONIC_ZOO);
+  const zooHd = HDKey.fromMasterSeed(zooSeed);
+  const p = zooHd.deriveChild(harden(CM_PURPOSE));
+  const c = p.deriveChild(harden(NMAX));
+  const readerSecp = c.deriveChild(harden(1));
+  const mlkemSeed = c.deriveChild(harden(3));
+  const readerSecpPub = secp256k1.getPublicKey(readerSecp.privateKey, true);
+  const k = ml_kem1024.keygen(concat(mlkemSeed.privateKey, taggedHash(MLKEM_Z_TAG, mlkemSeed.privateKey)));
+  const readerId = sha256(concat(new Uint8Array(readerSecpPub), new Uint8Array(k.publicKey)));
+  assert.equal(toHex(readerId), EXPECTED_NMAX.READER_ID);
+});
+
 console.log('\n=== BIP-39 PASSPHRASE ===\n');
 
 test('Different passphrase produces different seed', () => {
