@@ -156,8 +156,7 @@ test.describe('CenturyMetadata — crypto correctness', () => {
     const txt = await page.getByTestId('cm-gotcha-result').innerText();
     expect(txt).toContain('0 bytes'); // the bug
     expect(txt).toMatch(/\d{2,} bytes/); // the fix
-    expect(txt).toContain('title'); // recovered text
-    expect(txt).toContain('content');
+    expect(txt).toContain('bitcoin'); // recovered TYPE from triple demo data
   });
 
   test('CM-52: Nostr bridge — npub renders and signed note verifies', async ({ page }) => {
