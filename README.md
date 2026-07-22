@@ -84,7 +84,7 @@ docs/bridge.md                        design notes (Nostr ↔ centurymetadata br
 
 ## Spec drift
 
-This client is audited against upstream master HEAD. As of 2026-07-22 the public test API at `testapi.centurymetadata.org` lags master: it serves the pre-2026-07-08 spec (`TITLE\0CONTENTS\0` preamble) and rejects the current master format with HTTP 400 "Incorrect preamble". The live `npm run test:roundtrip` therefore fails until the upstream operator redeploys; the crypto primitives are verified independently by `npm run test:unit` (30 tests). See [`docs/SPEC-DRIFT.md`](docs/SPEC-DRIFT.md) for the full drift inventory.
+This client is audited against upstream master HEAD. As of 2026-07-22 the public test API at `testapi.centurymetadata.org` lags master: it serves the pre-2026-07-08 spec (`TITLE\0CONTENTS\0` preamble) and rejects the current master format with HTTP 400 "Incorrect preamble". The live `npm run test:roundtrip` therefore fails until the upstream operator redeploys; the crypto primitives are verified independently by `npm run test:unit` (33 tests). See [`docs/SPEC-DRIFT.md`](docs/SPEC-DRIFT.md) for the full drift inventory.
 
 ## Attribution
 

@@ -39,7 +39,7 @@ Spec-conformance + attribution pass against upstream master HEAD `7946c80`
   upstream file:line for `taggedHash`, `computeEcdh`, `gzipCompress`,
   `aesCtrEncrypt`, `PREAMBLE`, `deriveCmKeys`, `encodeRecord`, `decodeSlot`,
   `generateXorPirMasks`, `fetchSlotPrivate`, `checkSignature`.
-- Four TDD drift-guard tests in `test/unit-tests.mjs` (30 total, all green)
+- Four TDD drift-guard tests in `test/unit-tests.mjs` (33 total, all green)
   that read our own source/docs as text and assert the upstream-correct
   contract is present, so future drift is caught at CI time.
 
