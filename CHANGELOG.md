@@ -9,17 +9,37 @@ see [docs/SPEC-DRIFT.md](docs/SPEC-DRIFT.md) for the per-surface drift inventory
 ## [Unreleased]
 
 ### Added
-- Weekly CI workflow `.github/workflows/spec-drift.yml` that fetches upstream `vars`,
-  `python/centurymetadata/{constants,encode,decode,validate,bip39}.py`, and
-  `python/centurymetadata/server/known_words.txt` from
-  `raw.githubusercontent.com/rustyrussell/centurymetadata/master`, diffs them against
-  the checked-in baselines in `docs/upstream-baseline/`, and opens a deduplicated
-  `spec-drift` issue on any change. Pattern adapted from
-  [Amperstrand/shc-toolkit](https://github.com/Amperstrand/shc-toolkit/blob/main/.github/workflows/api-drift.yml).
-- `docs/upstream-baseline/` — byte-exact copies of the upstream master files this
-  project derives from. Used by the weekly drift job; update via
-  `workflow_dispatch` on `spec-drift.yml` after reconciling a drift.
-- `CHANGELOG.md` (this file).
+- **Known-keys scheme support** — `KNOWN_WORDS` (130 BIP-39 words from upstream
+  `known_words.txt`), `knownWordMnemonic()`, `isKnownWord()`, `isSelfAuthoredWord()`
+  helpers in `src/lib/centurymetadata.ts`. `RECORD_EXAMPLES` provides valid
+  TYPE/NAME/CONTENTS for all 5 accepted Bitcoin record types.
+- **Known-word picker UI** in `CenturyMetadata.svelte` — dropdown listing all 130
+  known words with self-authored/example-data badge. Selecting a word fills the
+  mnemonic and auto-derives keys.
+- **TYPE/NAME/CONTENTS Playground** — `CmPlayground.svelte` upgraded from
+  title/content inputs to TYPE dropdown + NAME + CONTENTS, auto-filled from
+  `RECORD_EXAMPLES`. Encode now uses compliant Bitcoin TYPEs.
+- **9 upstream test vector tests** in `test/unit-tests.mjs` (47 total) — verifies
+  ML-KEM Z tag, BIP-340 TAG, ML-KEM seed Z derivation, and full N=2147483647
+  extreme-slot derivation chain against upstream `test_vectors.json`.
+- **5 known-keys tests** — KNOWN_WORDS count (130), known words present,
+  mnemonic builder, self-authored split, RECORD_EXAMPLES coverage.
+- Weekly CI workflow `.github/workflows/spec-drift.yml` — fetches 8 upstream
+  files, diffs against baselines, opens deduplicated `spec-drift` issue.
+- `docs/upstream-baseline/` — byte-exact snapshots of upstream master HEAD.
+- `CHANGELOG.md`, `LICENSE`, `NOTICE`, `docs/SPEC-DRIFT.md`.
+
+### Fixed
+- **E2E `networkidle` timeout** — replaced 16 `waitUntil: 'networkidle'` with
+  `'domcontentloaded'` across 5 test suites (was causing all 100 E2E tests to
+  fail with 15s navigation timeout).
+- **E2E assertion mismatches** — CM-09, CM-51, CM-65 updated for the
+  TYPE/NAME/CONTENTS Playground upgrade and BrowserGotchas demo data change.
+- **PREAMBLE constant** — `TITLE\0CONTENTS\0` → `TYPE\0NAME\0CONTENTS\0` matching
+  upstream commit `c750c08` (preamble 1046→1051 bytes, record 9238→9243).
+- **XOR-PIR target bit** — `fetchSlotPrivate` now uses `bundle.index` (was
+  `globalBit % 1024` which collapsed to `slotIdx`).
+- **21 `// Upstream provenance:` comments** citing specific upstream file:line.
 
 ## [0.2.0] — 2026-07-22
 

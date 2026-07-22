@@ -11,3 +11,5 @@ test/playwright/report/
 .omo/
 .playwright-mcp/
 dashboard-*.png
+cm-visual-qa-*.png
+.playwright-mcp/
