@@ -1,0 +1,78 @@
+MIT License
+
+Copyright (c) 2026 Amperstrand
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+Third-party notices
+===================
+
+centurymetadata reference implementation
+----------------------------------------
+Portions of this project are a TypeScript port of the centurymetadata Python
+reference implementation, used under the upstream project's MIT license:
+
+  Copyright (c) 2021 Rusty Russell
+  Source: https://github.com/rustyrussell/centurymetadata/blob/master/LICENSE
+
+The encode/decode logic in src/lib/centurymetadata.ts and test/roundtrip.mjs
+is a derivative work of the following upstream files:
+
+  - python/centurymetadata/constants.py    (wire format, preamble)
+  - python/centurymetadata/encode.py       (compression, AES, ECDH, ML-KEM, signing)
+  - python/centurymetadata/decode.py       (signature check, decryption)
+  - python/centurymetadata/bip39.py        (BIP-32 derivation paths for CM_PURPOSE)
+  - python/centurymetadata/validate.py     (accepted TYPE strings and per-type validation)
+  - examples/EXAMPLES.md                   (XOR-PIR retrieval concept)
+  - vars / README.md                       (protocol specification)
+
+The byte-exact PREAMBLE constant in src/lib/centurymetadata.ts:156-178 and
+test/roundtrip.mjs:18-41 is a verbatim mirror of upstream constants.py.
+
+Underlying cryptographic primitives are provided by the following libraries,
+each with its own license (see package.json for version pins):
+
+  - @noble/curves        (secp256k1, Schnorr/BIP-340)   — MIT
+  - @noble/hashes        (SHA-256)                       — MIT
+  - @noble/post-quantum  (ML-KEM-1024 / FIPS 203)        — MIT
+  - @scure/bip32         (BIP-32 HD derivation)          — MIT
+  - @scure/bip39         (BIP-39 mnemonic → seed)        — MIT
+  - fflate               (gzip / DEFLATE)                — MIT
+
+Specifications referenced
+-------------------------
+This project implements protocols defined by external specifications. The
+specifications themselves are not code and are referenced for clarity:
+
+  - BIP-32  Hierarchical Deterministic Wallets
+            https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
+  - BIP-39  Mnemonic code for generating deterministic keys
+            https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki
+  - BIP-340 Schnorr Signatures for secp256k1
+            https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
+  - BIP-380 Output Script Descriptors
+            https://github.com/bitcoin/bips/blob/master/bip-0380.mediawiki
+  - BIP-329 Wallet Labels
+            https://github.com/bitcoin/bips/blob/master/bip-0329.mediawiki
+  - NIP-06  Key derivation from mnemonic seed
+            https://github.com/nostr-protocol/nips/blob/master/06.md
+  - FIPS 203 Module-Lattice-Based Key-Encapsulation Mechanism (ML-KEM)
+            https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.203.pdf

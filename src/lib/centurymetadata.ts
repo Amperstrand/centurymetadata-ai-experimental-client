@@ -28,9 +28,9 @@
  * 0x44315441 = ASCII "D1TA". ML-KEM seed = d || taggedHash("...mlkem-z", d) (64 bytes).
  * reader_id = SHA256(reader_secp_pubkey || reader_mlkem_pubkey).
  *
- * == Record format (9238 bytes) ==
+ * == Record format (9243 bytes) ==
  *
- *   PREAMBLE[1046] | SIG[64] | WRITER_PUBKEY[33] | READER_ID[32]
+ *   PREAMBLE[1051] | SIG[64] | WRITER_PUBKEY[33] | READER_ID[32]
  *                 | GEN[8]  | MLKEM_CT[1568]     | AES[6487]
  *
  * - PREAMBLE: human-readable format description (uploaded, not stored in bundle).
@@ -68,6 +68,8 @@ import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import { gzipSync, inflateSync } from 'fflate';
 
+// Upstream provenance: python/centurymetadata/constants.py:21-26
+// verheader = b"centurymetadata v1\0"; preamble = verheader + body; bip340tag = verheader[:-1]
 const FULL_LENGTH = 8192;
 const MLKEM_CT_LENGTH = 1568;
 const DATA_LENGTH = FULL_LENGTH - (64 + 33 + 32 + 8 + MLKEM_CT_LENGTH);
@@ -79,6 +81,7 @@ const PROXY_BASE = '/cm/api/v1';
 const SLOT_SIZE = 8192;
 const READER_ID_OFFSET = 64 + 33;
 
+// Upstream provenance: python/centurymetadata/validate.py:24-30 ACCEPTED_TYPES
 export const ACCEPTED_TYPES = [
   'bitcoin psbt',
   'bitcoin transaction',
@@ -95,12 +98,15 @@ function concatBytes(...arrays: Uint8Array[]): Uint8Array {
   return result;
 }
 
+// Upstream provenance: python/centurymetadata/encode.py:41-44 bip340_tagged_hash
+// BIP-340 tagged hash: SHA256(SHA256(tag) || SHA256(tag) || msg)
 function taggedHash(tag: string, msg: Uint8Array): Uint8Array {
   const tagBytes = new TextEncoder().encode(tag);
   const tagHash = sha256(tagBytes);
   return sha256(concatBytes(tagHash, tagHash, msg));
 }
 
+// Upstream provenance: encode.py:94 gen.to_bytes(8, "big") — big-endian int64 generation counter
 function int64ToBytesBE(value: bigint): Uint8Array {
   const buf = new Uint8Array(8);
   let v = value;
@@ -111,11 +117,18 @@ function int64ToBytesBE(value: bigint): Uint8Array {
   return buf;
 }
 
+// Upstream provenance: encode.py:76-78 get_ecdh_secret
+// libsecp256k1 ECDH default hashfn = SHA256(x-coordinate of the shared point).
+// @noble/curves' getSharedSecret returns compressed point [0x02|0x03, x(32), y(32)];
+// we hash bytes [1..33] = the x coordinate.
 function computeEcdh(myPrivKey: Uint8Array, theirPubKeyCompressed: Uint8Array): Uint8Array {
   const shared = secp256k1.getSharedSecret(myPrivKey, theirPubKeyCompressed);
   return sha256(shared.subarray(1, 33));
 }
 
+// Upstream provenance: encode.py:10-29 compress
+// gzip.compress(raw, mtime=0) then patch OS byte (offset 9) to 0xff for
+// cross-platform reproducibility (commit 63baef2, 2026-07-08). ljust to DATA_LENGTH.
 function gzipCompress(data: Uint8Array): Uint8Array {
   const result = gzipSync(data, { level: 9 });
   result[4] = 0; result[5] = 0; result[6] = 0; result[7] = 0;
@@ -123,6 +136,10 @@ function gzipCompress(data: Uint8Array): Uint8Array {
   return result;
 }
 
+// Browser-specific: fflate.gunzipSync returns empty on padded data (the AES payload
+// is zero-padded to DATA_LENGTH). Workaround: parse the RFC-1952 gzip header
+// manually and feed the raw DEFLATE stream to inflateSync, which stops at the
+// end-of-stream marker and ignores trailing zeros. See docs/bridge.md "gunzipSync bug".
 function gzipDecompress(data: Uint8Array): Uint8Array {
   const FLG = data[3];
   let offset = 10;
@@ -133,6 +150,9 @@ function gzipDecompress(data: Uint8Array): Uint8Array {
   return inflateSync(data.subarray(offset));
 }
 
+// Upstream provenance: encode.py:32-38 aes / decode.py:25-31 unaes
+// AES-256-CTR with 8-byte nonce + 8-byte counter (both zero) — matches Python
+// `AES.new(key=aeskey, mode=AES.MODE_CTR, nonce=bytes(8))`.
 async function aesCtrEncrypt(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
   const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'AES-CTR' }, false, ['encrypt']);
   const encrypted = await crypto.subtle.encrypt(
@@ -153,6 +173,11 @@ async function aesCtrDecrypt(key: Uint8Array, data: Uint8Array): Promise<Uint8Ar
   return new Uint8Array(decrypted);
 }
 
+// Upstream provenance: python/centurymetadata/constants.py:1-19 — byte-exact mirror of `verheader + preamble`.
+// 19-byte verheader "centurymetadata v1\0" + 1032-byte body = 1051 bytes total.
+// The body text MUST match upstream verbatim — the test server's decode.deconstruct() does
+// `cmetadata.startswith(preamble)` verification, so any byte difference causes HTTP 400 "Incorrect preamble".
+// Drift guard: test/unit-tests.mjs → "PREAMBLE describes TYPE\0NAME\0CONTENTS\0 triples".
 export const PREAMBLE = (() => {
   const verheader = new TextEncoder().encode('centurymetadata v1\0');
   const bodyStr =
@@ -172,7 +197,7 @@ export const PREAMBLE = (() => {
     'ECDH_SECRET: EC Diffie-Hellman of WRITER_PUBKEY and READER_SECP_PRIVKEY\n' +
     'AESKEY: SHA256(ECDH_SECRET|MLKEM_SECRET)\n' +
     'AES: CTR mode (starting 0, nonce 0) using AESKEY of DATA\n' +
-    'DATA: gzip([TITLE\\0CONTENTS\\0]+), padded with 0 bytes to 6487\0';
+    'DATA: gzip([TYPE\\0NAME\\0CONTENTS\\0]+), padded with 0 bytes to 6487\0';
   const body = new TextEncoder().encode(bodyStr);
   return concatBytes(verheader, body);
 })();
@@ -191,6 +216,10 @@ export interface CmKeys {
   writerMlkemSecretKey: Uint8Array;
 }
 
+// Upstream provenance: bip39.py:83-97 derive_cm_keys (BIP-32 paths) +
+// encode.py:47-73 derive_mlkem_keypair (deterministic ML-KEM-1024 keygen from d||z).
+// Derives 4 children at m/0x44315441'/N'/{0',1',2',3'}'; the ML-KEM seed is d||z
+// where z = BIP-340 tagged hash with tag "centurymetadata v1 mlkem-z".
 export function deriveCmKeys(mnemonic: string, n: number = 0, passphrase: string = ''): CmKeys {
   const seed = mnemonicToSeedSync(mnemonic, passphrase);
   const hdRoot = HDKey.fromMasterSeed(seed);
@@ -207,6 +236,9 @@ export function deriveCmKeys(mnemonic: string, n: number = 0, passphrase: string
   const readerMlkemSeedD = new Uint8Array(readerMlkemChild.privateKey!);
   const writerMlkemSeedD = new Uint8Array(writerMlkemChild.privateKey!);
 
+  // ML-KEM-1024 (FIPS 203) deterministic keygen: seed = d || z, where d = BIP-32 /3' (or /2') privkey
+  // and z = BIP-340 tagged_hash("centurymetadata v1 mlkem-z", d). @noble/post-quantum's
+  // keygen(seed) consumes the 64-byte d||z in the same order as upstream's seeded_random().
   const d = readerMlkemSeedD;
   const z = taggedHash(MLKEM_Z_TAG, d);
   const mlkemSeed = concatBytes(d, z);
@@ -223,6 +255,7 @@ export function deriveCmKeys(mnemonic: string, n: number = 0, passphrase: string
 
   const writerPubKey = new Uint8Array(secp256k1.getPublicKey(writerPrivKey, true));
   const readerSecpPubKey = new Uint8Array(secp256k1.getPublicKey(readerSecpPrivKey, true));
+  // Upstream provenance: encode.py:81-83 get_reader_id = SHA256(secp_pubkey || mlkem_pubkey)
   const readerId = sha256(concatBytes(readerSecpPubKey, mlkemPublicKey));
 
   return {
@@ -253,6 +286,10 @@ export interface EncodedRecord {
   debug: EncodeDebug;
 }
 
+// Upstream provenance: encode.py:101-113 encode()
+// Pipeline: compress triples → ECDH(writer_priv, reader_secp_pub) → ML-KEM encapsulate(reader_mlkem_pub)
+// → AESKEY = SHA256(ECDH || ML-KEM) → AES-256-CTR encrypt → sign contentBytes with BIP-340.
+// Output: PREAMBLE || SIG || contentBytes, total 1051 + 8192 = 9243 bytes.
 export async function encodeRecord(
   keys: CmKeys,
   triples: Array<[string, string, string]>,
@@ -327,6 +364,10 @@ export interface DecodedSlot {
   };
 }
 
+// Upstream provenance: decode.py:76-92 decode() + decode.py:34-49 split_parts() + decode.py:52-60 check_sig().
+// Inverse of encodeRecord: split slot → verify BIP-340 sig over taggedHash(BIP340_TAG, contentBytes)
+// → ECDH(reader_secp_priv, writer_pub) → ML-KEM decapsulate → AES decrypt → decompress → split triples.
+// Returns sigValid=false on bad signature; caller decides whether to trust the parsed triples.
 export async function decodeSlot(
   keys: CmKeys,
   slot: Uint8Array,
@@ -440,6 +481,11 @@ export async function fetchSlots(readerId: Uint8Array): Promise<Uint8Array[]> {
   return foundSlots;
 }
 
+// Upstream provenance: README.md "Retrieving Entries: POST /api/v1/fetchxor/{DIRECTORY}" + examples/EXAMPLES.md.
+// 128-byte (1024-bit) bitmask selects which BUNDLES in a DIRECTORY to XOR. A single-bit
+// bitmask returns one raw bundle; this helper composes two complementary masks that differ
+// only at targetBit, so XORing the two server responses cancels every noise bundle and
+// recovers the target bundle without either server learning which one was wanted.
 export function generateXorPirMasks(targetBit: number): { maskA: Uint8Array; maskB: Uint8Array } {
   const maskA = crypto.getRandomValues(new Uint8Array(128));
   maskA[Math.floor(targetBit / 8)] |= 1 << (targetBit % 8);
@@ -455,6 +501,10 @@ export function xorBundles(a: Uint8Array, b: Uint8Array): Uint8Array {
   return result;
 }
 
+// Upstream provenance: README.md "Retrieving Entries" private-retrieval paragraph +
+// examples/EXAMPLES.md XOR-PIR walkthrough. Two-server PIR: query two servers with
+// complementary bundle bitmasks (differ only at the target bundle's bit), XOR their
+// responses to recover the target bundle, then client-side scan for the reader_id.
 export async function fetchSlotPrivate(
   serverBaseA: string,
   serverBaseB: string,
@@ -486,8 +536,15 @@ export async function fetchSlotPrivate(
 
     if (serverBaseA === serverBaseB) return probeData.subarray(slotIdx * SLOT_SIZE, (slotIdx + 1) * SLOT_SIZE);
 
-    const globalBit = bundle.index * 1024 + slotIdx;
-    const { maskA, maskB } = generateXorPirMasks(globalBit % 1024);
+    // XOR-PIR target bit = bundle's position in the directory (the 128-byte / 1024-bit
+    // fetchxor bitmask selects BUNDLES, not slots-within-bundle). The reader_id is
+    // recovered by client-side scan after the bundle is XORed back out of the two
+    // server responses. Hiding WHICH slot a client wants is not expressible in the
+    // upstream API; clients always scan the whole 8 MB bundle for their reader_id.
+    // (Previously this used `globalBit = bundle.index * 1024 + slotIdx` then took
+    // `% 1024`, which collapsed to slotIdx and only worked by accident when the
+    // directory contained a single bundle at index 0.)
+    const { maskA, maskB } = generateXorPirMasks(bundle.index);
 
     const [resA, resB] = await Promise.all([
       fetch(`${serverBaseA}/fetchxor/${bundle.directory}`, {
@@ -620,6 +677,10 @@ export async function scanNetwork(): Promise<{ slots: SlotPublic[]; stats: Netwo
   };
 }
 
+// Upstream provenance: decode.py:52-60 check_sig() + decode.py:34-49 split_parts()
+// Verify the BIP-340 Schnorr signature over taggedHash(TAG, contentBytes) where contentBytes
+// = everything after SIG (= WRITER_PUBKEY || READER_ID || GEN || MLKEM_CT || AES).
+// No reader-side secrets needed — anyone can verify a record's authenticity from the slot alone.
 export function checkSignature(slot: Uint8Array): boolean {
   if (slot.length < FULL_LENGTH) return false;
   const sig = slot.subarray(0, 64);

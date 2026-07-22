@@ -29,15 +29,15 @@ Keys are cryptographically independent across the two systems despite sharing a 
 
 ## Record Format
 
-Each upload is 9238 bytes:
+Each upload is 9243 bytes:
 
 ```
-PREAMBLE[1046] | SIG[64] | WRITER_PUBKEY[33] | READER_ID[32] | GEN[8] | MLKEM_CT[1568] | AES[6487]
+PREAMBLE[1051] | SIG[64] | WRITER_PUBKEY[33] | READER_ID[32] | GEN[8] | MLKEM_CT[1568] | AES[6487]
 ```
 
 | Field | Size | Description |
 |---|---|---|
-| PREAMBLE | 1046 | Human-readable format spec (uploaded, not stored in bundle) |
+| PREAMBLE | 1051 | Human-readable format spec (uploaded, not stored in bundle) |
 | SIG | 64 | BIP-340 Schnorr signature over `taggedHash(TAG, content[64:])` |
 | WRITER_PUBKEY | 33 | Compressed secp256k1 public key of the writer |
 | READER_ID | 32 | `SHA256(reader_secp_pubkey || reader_mlkem_pubkey)` |
@@ -93,7 +93,7 @@ The Worker proxy exists because testapi.centurymetadata.org is Apache with no CO
 |---|---|---|---|
 | GET | `/cm/api/v1/listbundles` | — | List bundle directories `[{"directory":"00-ff","index":0}]` |
 | POST | `/cm/api/v1/authorize/{readerId}/{writerPub}/{authtoken}` | empty | Authorize writer for reader_id |
-| POST | `/cm/api/v1/update` | 9238 bytes | Upload a record (preamble + slot) |
+| POST | `/cm/api/v1/update` | 9243 bytes | Upload a record (preamble + slot) |
 | POST | `/cm/api/v1/fetchxor/{directory}` | 128-byte bitmask | Fetch XOR'd bundle data |
 
 Authtoken is `0`.repeat(64) — the test API's open token.

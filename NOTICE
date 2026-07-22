@@ -1,0 +1,27 @@
+centurymetadata-ai-experimental-client
+=======================================
+
+An interactive learning client for the centurymetadata protocol
+(https://centurymetadata.org) by Rusty Russell.
+
+This is an experimental / proof-of-concept project. It is NOT affiliated with,
+endorsed by, or officially connected to the upstream centurymetadata project.
+For production use, refer to the reference implementation at
+https://github.com/rustyrussell/centurymetadata.
+
+Attribution
+-----------
+The encode/decode logic in src/lib/centurymetadata.ts is a TypeScript port of
+Rusty Russell's Python reference implementation
+(https://github.com/rustyrussell/centurymetadata/tree/master/python),
+adapted to use browser-compatible libraries. See LICENSE for the full
+third-party notice and per-file provenance comments in the source for the
+specific upstream file each function derives from.
+
+Test vectors in test/unit-tests.mjs are derived from the standard BIP-39
+"abandon abandon ... about" public test mnemonic and the upstream
+test_vectors.json. No real wallet material is present in this repository.
+
+License
+-------
+MIT. See LICENSE.

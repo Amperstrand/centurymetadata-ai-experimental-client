@@ -6,6 +6,19 @@ import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import { gzipSync, inflateSync } from 'fflate';
 import { createCipheriv, createDecipheriv } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The tests below labelled "SPEC DRIFT" guard against divergence from upstream.
+// They read our own source files as text and assert specific contract strings
+// are (or are not) present. Source-text inspection is intentional: unit-tests.mjs
+// runs under plain Node with no TS compilation, and these tests document the
+// upstream contract at the source level so future drift is caught at CI time.
+//
+// Upstream reference:
+//   https://github.com/rustyrussell/centurymetadata/blob/master/python/centurymetadata/constants.py
+//   https://github.com/rustyrussell/centurymetadata/blob/master/python/centurymetadata/encode.py
+// ─────────────────────────────────────────────────────────────────────────────
 
 const toHex = (b) => Array.from(b).map(x => x.toString(16).padStart(2, '0')).join('');
 const fromHex = (h) => new Uint8Array(h.match(/../g).map(x => parseInt(x, 16)));
@@ -308,6 +321,84 @@ test('XOR-PIR recovers target slot from two responses', () => {
   for (let i = 0; i < 8192; i++) recovered[i] = responseA[i] ^ responseB[i];
 
   assert.deepEqual(Array.from(recovered), Array.from(targetSlot));
+});
+
+console.log('\n=== SPEC DRIFT: PREAMBLE constant vs upstream constants.py ===\n');
+// Refs:
+//   upstream constants.py:1-19 — defines `verheader + preamble` byte-exact
+//   upstream commit c750c08 (2026-07-08) — wire format TITLE\0CONTENTS\0 → TYPE\0NAME\0CONTENTS\0
+//   Our encoder in src/lib/centurymetadata.ts already produces triples; the PREAMBLE
+//   text-constant must describe triples too, otherwise uploads fail with
+//   "Incorrect preamble" against any server running current master (decode.deconstruct
+//   does startswith(preamble) verification).
+
+test('src/lib/centurymetadata.ts PREAMBLE describes TYPE\\0NAME\\0CONTENTS\\0 triples', () => {
+  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  // TS source: inside the body literal, NUL bytes are written as \\0 (escaped). Upstream
+  // constants.py line 19 ends with: DATA: gzip([TYPE\0NAME\0CONTENTS\0]+), padded with 0 bytes to 6487\0
+  // Our source must mirror that exactly (5 more bytes than the old TITLE\0CONTENTS\0 form).
+  assert.ok(
+    src.includes("'DATA: gzip([TYPE\\\\0NAME\\\\0CONTENTS\\\\0]+), padded with 0 bytes to 6487\\0'"),
+    "PREAMBLE body in src/lib/centurymetadata.ts must end with: 'DATA: gzip([TYPE\\0NAME\\0CONTENTS\\0]+), padded with 0 bytes to 6487\\0' " +
+    "(mirrors upstream constants.py since commit c750c08 on 2026-07-08). Currently still has the old TITLE\\0CONTENTS\\0 form."
+  );
+});
+
+test('test/roundtrip.mjs PREAMBLE describes TYPE\\0NAME\\0CONTENTS\\0 triples', () => {
+  const src = readFileSync('test/roundtrip.mjs', 'utf8');
+  // roundtrip.mjs builds the same PREAMBLE byte-for-byte; it must also mirror upstream.
+  assert.ok(
+    src.includes("DATA: gzip([TYPE\\\\0NAME\\\\0CONTENTS\\\\0]+), padded with 0 bytes to 6487\\0'"),
+    "PREAMBLE body in test/roundtrip.mjs must also use TYPE\\0NAME\\0CONTENTS\\0 (mirror upstream constants.py)."
+  );
+});
+
+test('docs/bridge.md and README.md cite the upstream-correct byte counts (preamble=1051, record=9243)', () => {
+  // Upstream constants.py: len(verheader) + len(body with TYPE/NAME/CONTENTS line) = 19 + 1032 = 1051.
+  // Record total = 1051 (preamble) + 8192 (binary slot) = 9243.
+  // The old 1046/9238 figures correspond to the pre-2026-07-08 TITLE\0CONTENTS\0 preamble.
+  for (const path of ['docs/bridge.md', 'README.md']) {
+    const txt = readFileSync(path, 'utf8');
+    assert.ok(
+      !txt.includes('PREAMBLE[1046]') && !txt.includes('9238 bytes'),
+      `${path} still references the old preamble size 1046 / record size 9238. ` +
+      'Upstream master since commit c750c08 (2026-07-08) uses 1051 / 9243.'
+    );
+  }
+});
+
+console.log('\n=== SPEC DRIFT: XOR-PIR target bit must be bundle.index, not slotIdx ===\n');
+// Refs:
+//   upstream README.md "Retrieving Entries: POST /api/v1/fetchxor/{DIRECTORY}" — the
+//   128-byte bitmask selects BUNDLES within a DIRECTORY (1024 bits, one per bundle).
+//   Slots-within-bundle are found by client-side reader_id scan; there is no
+//   slot-level PIR primitive in the upstream API.
+//
+// Our fetchSlotPrivate() previously computed `bundle.index * 1024 + slotIdx` then
+// `globalBit % 1024` (= slotIdx), losing bundle.index entirely. That worked only by
+// accident when there was a single bundle (index 0). The correct call is
+// `generateXorPirMasks(bundle.index)` to hide WHICH bundle in the directory.
+
+test('fetchSlotPrivate uses bundle.index as the XOR-PIR target bit', () => {
+  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  const fnMatch = src.match(/export async function fetchSlotPrivate[\s\S]*?\n}\n/);
+  assert.ok(fnMatch, 'fetchSlotPrivate function body not found in src/lib/centurymetadata.ts');
+  const fnBody = fnMatch[0];
+  // Strip line + block comments so the assertions look only at executable code.
+  const codeOnly = fnBody
+    .replace(/\/\/.*$/gm, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(
+    !/\bglobalBit\b/.test(codeOnly),
+    'fetchSlotPrivate executable code still references `globalBit`. ' +
+    'The 128-byte fetchxor bitmask is per-DIRECTORY: each bit selects a BUNDLE. ' +
+    'Use generateXorPirMasks(bundle.index) directly so PIR hides which bundle is requested.'
+  );
+  assert.ok(
+    /generateXorPirMasks\(\s*bundle\.index\s*\)/.test(codeOnly),
+    'fetchSlotPrivate should call generateXorPirMasks(bundle.index). ' +
+    'The reader_id is found by client-side scan after the bundle is recovered via XOR.'
+  );
 });
 
 console.log(`\n${passed} passed, ${failed} failed, ${passed + failed} total`);

@@ -1,8 +1,24 @@
 // centurymetadata full round-trip test against the public test API.
 // One mnemonic -> two ecosystems: a Nostr (NIP-06) key AND centurymetadata keys.
 //
-//   node tests/centurymetadata-roundtrip.mjs [mnemonic]
+//   node test/roundtrip.mjs [mnemonic]
 //
+// PROVENANCE: this file is the Node reference implementation that mirrors the
+// upstream Python examples/centurytool.py flow, using Node's stdlib instead of
+// browser libs. The PREAMBLE constant below is a byte-exact copy of
+// python/centurymetadata/constants.py:1-19; the encode pipeline mirrors
+// python/centurymetadata/encode.py:101-113; the decode pipeline mirrors
+// python/centurymetadata/decode.py:76-92. See LICENSE for the upstream
+// MIT notice and docs/SPEC-DRIFT.md for known deployment-lag issues with the
+// public test API.
+//
+// NOTE: as of 2026-07-22, the test API at testapi.centurymetadata.org lags
+// upstream master — it serves the pre-2026-07-08 preamble (TITLE\0CONTENTS\0
+// form) and rejects the current TYPE\0NAME\0CONTENTS\0 preamble with HTTP 400
+// "Incorrect preamble". This script pins master-HEAD behaviour, so the live
+// round-trip is expected to fail until the upstream operator redeploys.
+// See docs/SPEC-DRIFT.md for details.
+
 import { ml_kem1024 } from '@noble/post-quantum/ml-kem.js';
 import { secp256k1, schnorr } from '@noble/curves/secp256k1.js';
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -13,8 +29,9 @@ import { gzipSync, gunzipSync } from 'node:zlib';
 import { createCipheriv, createDecipheriv } from 'node:crypto';
 
 // --- Constants -------------------------------------------------------------
-// Canonical preamble (byte-exact mirror of centurymetadata's constants.py).
-// verheader = "centurymetadata v1" + NUL; body ends with a NUL after "6487".
+// Upstream provenance: python/centurymetadata/constants.py:1-19 — byte-exact mirror.
+// 19-byte verheader "centurymetadata v1\0" + 1032-byte body = 1051 bytes total.
+// Drift guard: test/unit-tests.mjs → "PREAMBLE describes TYPE\0NAME\0CONTENTS\0 triples".
 const PREAMBLE = (() => {
   const verheader = Buffer.from('centurymetadata v1\0', 'latin1');
   const body = Buffer.from(
@@ -34,7 +51,7 @@ const PREAMBLE = (() => {
       'ECDH_SECRET: EC Diffie-Hellman of WRITER_PUBKEY and READER_SECP_PRIVKEY\n' +
       'AESKEY: SHA256(ECDH_SECRET|MLKEM_SECRET)\n' +
       'AES: CTR mode (starting 0, nonce 0) using AESKEY of DATA\n' +
-      'DATA: gzip([TITLE\\0CONTENTS\\0]+), padded with 0 bytes to 6487\0',
+      'DATA: gzip([TYPE\\0NAME\\0CONTENTS\\0]+), padded with 0 bytes to 6487\0',
     'latin1'
   );
   return Buffer.concat([verheader, body]);
@@ -148,7 +165,7 @@ const prehash = taggedHash(BIP340_TAG, content);
 const sig = Buffer.from(schnorr.sign(prehash, writerPrivKey)); // 64
 const slot = Buffer.concat([sig, content]); // 8192
 const preamble = PREAMBLE;
-const fullRecord = Buffer.concat([preamble, slot]); // 1046 + 8192 = 9238
+const fullRecord = Buffer.concat([preamble, slot]); // 1051 + 8192 = 9243
 
 console.log('=== KEY DERIVATION ===');
 console.log('  mnemonic:                ', mnemonic);

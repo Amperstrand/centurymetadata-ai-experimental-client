@@ -21,7 +21,7 @@ A single-page explorer walks through the whole system, end to end — 14 interac
 9. **Why Hybrid** — concrete what-if scenarios for quantum + cryptanalysis failure
 10. **Browser Crypto** — the gunzip-on-padded-data bug, gzip OS byte fix, AES/ECDH/Buffer porting gotchas
 11. **Node vs Browser** — side-by-side API comparison tables
-12. **The Bundle** — 1024-slot XOR-masked grid, fetchdepth routing, network sample from the public test API
+12. **The Bundle** — 1024-slot XOR-masked grid, listbundles+fetchxor routing, network sample from the public test API
 13. **XOR Privacy** — animated 5-step two-server XOR-PIR retrieval demo
 14. **Playground** — write a real encrypted record, fetch it back, watch it decrypt
 
@@ -79,15 +79,22 @@ docs/bridge.md                        design notes (Nostr ↔ centurymetadata br
 
 ## References
 
-- [centurymetadata.org](https://centurymetadata.org) · [test API](https://testapi.centurymetadata.org)
-- [FIPS 203](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.203.pdf) (ML-KEM) · [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0034.mediawiki) (Schnorr) · [NIP-06](https://github.com/nostr-protocol/nips/blob/master/06.md)
+- [centurymetadata.org](https://centurymetadata.org) · [test API](https://testapi.centurymetadata.org) · [upstream source](https://github.com/rustyrussell/centurymetadata)
+- [FIPS 203](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.203.pdf) (ML-KEM) · [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki) (Schnorr) · [BIP-32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) · [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) · [NIP-06](https://github.com/nostr-protocol/nips/blob/master/06.md)
+
+## Spec drift
+
+This client is audited against upstream master HEAD. As of 2026-07-22 the public test API at `testapi.centurymetadata.org` lags master: it serves the pre-2026-07-08 spec (`TITLE\0CONTENTS\0` preamble) and rejects the current master format with HTTP 400 "Incorrect preamble". The live `npm run test:roundtrip` therefore fails until the upstream operator redeploys; the crypto primitives are verified independently by `npm run test:unit` (30 tests). See [`docs/SPEC-DRIFT.md`](docs/SPEC-DRIFT.md) for the full drift inventory.
 
 ## Attribution
 
 This project is a **browser-based learning client** that visualizes and explains the centurymetadata protocol.
 It is not affiliated with the upstream project. The encode/decode logic in `src/lib/centurymetadata.ts` is a
 TypeScript port of the [Python reference implementation](https://github.com/rustyrussell/centurymetadata/tree/master/python)
-by [Rusty Russell](https://github.com/rustyrussell), adapted to use browser-compatible libraries:
+by [Rusty Russell](https://github.com/rustyrussell) (MIT, Copyright (c) 2021), adapted to use browser-compatible
+libraries. See [`LICENSE`](LICENSE) (third-party notices section) and [`NOTICE`](NOTICE) for the full attribution;
+per-function source comments in `src/lib/centurymetadata.ts` cite the specific upstream file:line each section
+derives from.
 
 | Primitive | Library | Python equivalent |
 |---|---|---|
@@ -98,10 +105,18 @@ by [Rusty Russell](https://github.com/rustyrussell), adapted to use browser-comp
 | gzip | [`fflate`](https://github.com/101arrowz/fflate) | `gzip` (stdlib) |
 | AES-256-CTR | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto) | `pycryptodome` |
 
-Key patterns adapted from the Python reference:
-- Record format and preamble — `python/centurymetadata/constants.py`
-- TYPE/NAME/CONTENTS triples — `add-name-fields` branch (PR #9)
-- 5 Bitcoin record types + validation — `python/centurymetadata/validate.py`
-- BIP-32 derivation paths `/0'`, `/1'`, `/2'`, `/3'` — `python/centurymetadata/bip39.py`
-- XOR-PIR two-server retrieval — `examples/EXAMPLES.md`
-- gzip OS byte fix (offset 9 → `0xff`) — `python/centurymetadata/encode.py` line 25
+Patterns ported from the Python reference (audited 2026-07-22 against master HEAD `7946c80`):
+
+| Pattern | Upstream file | Key commit |
+|---|---|---|
+| Wire format & 1051-byte preamble | `python/centurymetadata/constants.py:1-19` | `c750c08` (2026-07-08, TITLE→TYPE/NAME/CONTENTS) |
+| `compress` (gzip OS byte = 0xff) | `python/centurymetadata/encode.py:10-29` | `63baef2` (2026-07-08, cross-platform reproducibility) |
+| `aes` / `unaes` (AES-256-CTR, nonce=bytes(8)) | `python/centurymetadata/encode.py:32-38` / `decode.py:25-31` | — |
+| `bip340_tagged_hash` | `python/centurymetadata/encode.py:41-44` | — |
+| `derive_mlkem_keypair` (d‖z, 64-byte seed) | `python/centurymetadata/encode.py:47-73` | — |
+| `get_ecdh_secret`, `get_reader_id`, `get_aeskey` | `python/centurymetadata/encode.py:76-88` | — |
+| `encode` / `decode` / `check_sig` / `split_parts` | `python/centurymetadata/encode.py:101-113` / `decode.py:34-92` | — |
+| 4 BIP-32 paths `m/0x44315441'/N'/{0',1',2',3'}'` | `python/centurymetadata/bip39.py:83-97` | `e856197` (2026-03-30, explicit /2' writer ML-KEM) |
+| 5 Bitcoin record types + validation | `python/centurymetadata/validate.py:24-211` | `56f6462` + `633b038` (2026-03-30) + `91618eb`/`555b832`/`0a0c46e`/`1c00350`/`c5edc0e` (2026-07-09) |
+| XOR-PIR two-server retrieval | `README.md` "Retrieving Entries" + `examples/EXAMPLES.md` | `5358225` (2026-07-07, replaced fetchdepth/fetchbundle with listbundles+fetchxor) |
+| `AUTHTOKEN = '0'×64` test API convention | `python/centurymetadata/server/server.py:240-243` | — |

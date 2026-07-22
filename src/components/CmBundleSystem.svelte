@@ -161,13 +161,15 @@
       page load would be slow). The cell colours reflect that sample, not the whole network.
     </p>
     <div class="mt-3 pt-3 border-t border-[#21262d]">
-      <div class="text-[10px] text-[#d29922] font-mono mb-1">fetchdepth: how routing scales</div>
+      <div class="text-[10px] text-[#d29922] font-mono mb-1">listbundles + fetchxor: how routing scales</div>
       <p class="text-[10px] text-[#8b949e] leading-relaxed">
-        Records are routed to bundles by their <code class="text-[#a371f7]">reader_id</code> hex prefix. The server's
-        <code class="text-[#58a6ff]">GET /api/v1/fetchdepth</code> endpoint returns how many hex digits are currently used.
-        At launch, depth is 0 — all records go in one bundle. As the network grows past 1024 records per bundle, it splits
-        into two halves named by the minimal distinct hex prefix. The depth increases by one each time, so clients always
-        know which prefix length to use for <code class="text-[#a371f7]">fetchxor</code>.
+        Records are routed to bundles by their <code class="text-[#a371f7]">reader_id</code> hex prefix. The
+        <code class="text-[#58a6ff]">GET /api/v1/listbundles</code> endpoint returns the directory/bundle layout
+        with each bundle's 0-based <code class="text-[#a371f7]">index</code> — the bit position to set in the
+        128-byte <code class="text-[#a371f7]">fetchxor</code> bitmask. At launch there is one bundle at index 0;
+        as the network grows past 1024 records per bundle it splits into two halves named by the minimal
+        distinct hex prefix. Directories split the same way once they exceed 1024 bundles, so the bitmask
+        always covers the current set of bundles in a directory.
       </p>
     </div>
     <div class="mt-3 pt-3 border-t border-[#21262d]">

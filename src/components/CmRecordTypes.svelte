@@ -128,7 +128,7 @@
     if (lines.length === 0) {
       return { valid: false, message: 'No labels provided', details: ['Provide at least one JSON line'] };
     }
-    const validTypes = ['tx', 'addr', 'pubkey', 'input', 'output', 'xpub'];
+    const validTypes = ['tx', 'addr', 'pubkey', 'input', 'output', 'xpub', 'spscan'];
     let validCount = 0;
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
