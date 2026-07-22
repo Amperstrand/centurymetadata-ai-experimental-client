@@ -152,13 +152,17 @@
     <h4 class="text-sm font-semibold text-[#e6edf3] mb-2">Privacy in numbers (XOR masking)</h4>
     <p class="text-xs text-[#8b949e] leading-relaxed">
       Records aren't fetched individually. A client sends a 128-byte <strong class="text-[#e6edf3]">bitmask</strong>
-      (1024 bits, one per slot) and the server <strong class="text-[#e6edf3]">XORs</strong> the selected slots together.
-      A single-bit bitmask returns one raw slot; multi-bit bitmaps mix slots so the server can't tell which record you want.
-      Everyone downloads the same shared bundle — only your <code class="text-[#a371f7]">reader_id</code> lets you spot your slot.
+      (1024 bits — one bit per <em>bundle</em> in the directory, per upstream README "Retrieving Entries:
+      POST /api/v1/fetchxor/{DIRECTORY}") and the server <strong class="text-[#e6edf3]">XORs</strong> the
+      selected bundles together. A single-bit bitmask returns one raw 8 MB bundle (1024 × 8192-byte slots);
+      multi-bit bitmaps mix bundles so the server can't tell which one you want. Everyone then scans the
+      same 1024-slot result client-side — only your <code class="text-[#a371f7]">reader_id</code> lets you
+      spot your slot.
     </p>
     <p class="text-[10px] text-[#484f58] mt-2">
-      ⚠ This grid is a <em>sample</em>: the explorer probes slot 0 of each bundle directory (a full 8 MB scan on every
-      page load would be slow). The cell colours reflect that sample, not the whole network.
+      ⚠ This grid is a <em>sample</em>: the explorer probes bundle 0 of each directory (a full multi-bundle
+      scan on every page load would be slow). The 1024 cells reflect the slots inside that one bundle, not
+      the whole network.
     </p>
     <div class="mt-3 pt-3 border-t border-[#21262d]">
       <div class="text-[10px] text-[#d29922] font-mono mb-1">listbundles + fetchxor: how routing scales</div>

@@ -1,0 +1,266 @@
+---
+# Workflow: weekly upstream spec-drift detection for rustyrussell/centurymetadata.
+#
+# Mirrors the pattern in
+# https://github.com/Amperstrand/shc-toolkit/blob/main/.github/workflows/api-drift.yml
+# — fetch the live upstream files, diff against checked-in baselines in
+# docs/upstream-baseline/, and open a deduplicated GitHub issue on any change.
+#
+# Triggers:
+#   - Weekly cron: Monday 04:00 UTC (covers any upstream work merged over the
+#     weekend; gives us a working day to triage).
+#   - workflow_dispatch: for manual runs, with an optional `refresh_baseline`
+#     input that commits the new bytes to docs/upstream-baseline/ after a
+#     successful reconciliation.
+#
+# Permissions: issues: write is required for github.rest.issues.create and
+# .listForRepo; contents: write is required only for the baseline-refresh
+# step (gated behind workflow_dispatch + the refresh_baseline input).
+
+name: spec-drift
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'  # Every Monday 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      refresh_baseline:
+        description: 'Commit newly-fetched upstream bytes to docs/upstream-baseline/ after diffing (use only after reconciling code)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: spec-drift
+  cancel-in-progress: false
+
+jobs:
+  diff:
+    name: Diff upstream master vs baseline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch upstream files
+        id: fetch
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/upstream
+          BASE='https://raw.githubusercontent.com/rustyrussell/centurymetadata/master'
+
+          # Capture the current HEAD sha + commit date for the issue body.
+          HEAD_INFO=$(curl -fsS \
+            -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/rustyrussell/centurymetadata/commits/master)
+          HEAD_SHA=$(printf '%s' "$HEAD_INFO" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')
+          HEAD_DATE=$(printf '%s' "$HEAD_INFO" | python3 -c 'import json,sys; print(json.load(sys.stdin)["commit"]["committer"]["date"])')
+          {
+            echo "head_sha=$HEAD_SHA"
+            echo "head_date=$HEAD_DATE"
+          } >> "$GITHUB_OUTPUT"
+
+          # Each line: <baseline-name><space><upstream-path>
+          cat > /tmp/track-list.txt <<'TRACK'
+          vars vars
+          README.md README.md
+          constants.py python/centurymetadata/constants.py
+          encode.py python/centurymetadata/encode.py
+          decode.py python/centurymetadata/decode.py
+          validate.py python/centurymetadata/validate.py
+          bip39.py python/centurymetadata/bip39.py
+          known_words.txt python/centurymetadata/server/known_words.txt
+          TRACK
+          sed -i 's/^          //' /tmp/track-list.txt
+
+          while read -r name path; do
+            [ -z "$name" ] && continue
+            curl -fsSL "$BASE/$path" -o "/tmp/upstream/$name" || {
+              echo "::error::Failed to fetch $path"
+              exit 1
+            }
+          done < /tmp/track-list.txt
+
+          echo 'Fetched files:'
+          ls -la /tmp/upstream/
+
+      - name: Diff against baseline
+        id: collect
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/diffs
+          drifted=false
+          : > /tmp/diffs/_body.md
+          : > /tmp/summary.txt
+
+          for new_file in /tmp/upstream/*; do
+            name=$(basename "$new_file")
+            base_file="docs/upstream-baseline/$name"
+            if [ ! -f "$base_file" ]; then
+              echo "::warning::Baseline missing for $name — skipping"
+              continue
+            fi
+
+            if diff -q "$base_file" "$new_file" >/dev/null 2>&1; then
+              echo "OK $name: no changes"
+              echo "- OK \`${name}\` — unchanged" >> /tmp/summary.txt
+            else
+              echo "::notice::$name has drifted"
+              drifted=true
+              echo "- CHANGED \`${name}\`" >> /tmp/summary.txt
+              diff -u "$base_file" "$new_file" > "/tmp/diffs/$name.diff" || true
+              # Cap each file's diff at 200 lines to keep the issue body manageable.
+              sed -i '1,200!d' "/tmp/diffs/$name.diff"
+              {
+                printf '\n### `%s`\n\n' "$name"
+                printf '```diff\n'
+                cat "/tmp/diffs/$name.diff"
+                printf '```\n'
+              } >> /tmp/diffs/_body.md
+            fi
+          done
+
+          # Multi-line output via $GITHUB_OUTPUT delimiter syntax.
+          {
+            echo "summary<<SUMMARY_EOF"
+            cat /tmp/summary.txt
+            echo "SUMMARY_EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "drifted=$drifted" >> "$GITHUB_OUTPUT"
+
+          echo
+          echo '=== Summary ==='
+          cat /tmp/summary.txt
+
+      - name: Build issue body
+        if: steps.collect.outputs.drifted == 'true'
+        env:
+          HEAD_SHA: ${{ steps.fetch.outputs.head_sha }}
+          HEAD_DATE: ${{ steps.fetch.outputs.head_date }}
+          SUMMARY: ${{ steps.collect.outputs.summary }}
+        run: |
+          set -euo pipefail
+          python3 <<'PYEOF'
+          import os, pathlib, textwrap
+          head_sha = os.environ['HEAD_SHA']
+          head_date = os.environ['HEAD_DATE']
+          summary = os.environ['SUMMARY']
+          diffs_body = pathlib.Path('/tmp/diffs/_body.md').read_text() if pathlib.Path('/tmp/diffs/_body.md').exists() else ''
+
+          action_items = textwrap.dedent("""\
+              ## Action items
+
+              1. Read the diffs below and identify which surfaces are affected:
+                 - `vars` / `README.md` -> spec text changed (re-read the protocol description)
+                 - `constants.py` -> PREAMBLE wire format or field sizes changed (update `src/lib/centurymetadata.ts:181-198` and `test/roundtrip.mjs:18-41`)
+                 - `encode.py` / `decode.py` -> encode/decode pipeline changed (update `encodeRecord` / `decodeSlot`)
+                 - `validate.py` -> accepted TYPE strings or per-type CONTENTS validation changed (update `ACCEPTED_TYPES` and `CmRecordTypes.svelte` validators)
+                 - `bip39.py` -> BIP-32 derivation paths changed (update `deriveCmKeys`)
+                 - `known_words.txt` -> test-server known-keys scheme changed
+              2. Update the TypeScript port to match.
+              3. Update `docs/upstream-baseline/<file>` to the new bytes (or re-run this workflow with `refresh_baseline=true`).
+              4. Run `npm run test:unit` (drift-guard tests should pass).
+              5. Run `npm run build` (should be exit 0).
+              6. Update `CHANGELOG.md` and `docs/SPEC-DRIFT.md` if the change is user-visible.
+              7. Close this issue once reconciled.
+
+              ## Re-running this workflow
+
+              ```bash
+              gh workflow run spec-drift.yml -R ${GITHUB_REPOSITORY}
+              ```
+
+              To refresh the baselines after a successful reconciliation:
+
+              ```bash
+              gh workflow run spec-drift.yml -R ${GITHUB_REPOSITORY} -f refresh_baseline=true
+              ```
+          """)
+
+          body = (
+              "## Upstream spec drift detected\n\n"
+              "Weekly CI detected that [`rustyrussell/centurymetadata`](https://github.com/rustyrussell/centurymetadata) master has changed in a way that affects this client's wire-format compatibility.\n\n"
+              f"- **Upstream HEAD**: [`{head_sha}`](https://github.com/rustyrussell/centurymetadata/commit/{head_sha}) ({head_date})\n"
+              "- **Detected by**: `.github/workflows/spec-drift.yml` (weekly cron)\n"
+              "- **Baselines**: `docs/upstream-baseline/`\n\n"
+              "### Files changed\n\n"
+              f"{summary}\n\n"
+              "See per-file diffs below.\n"
+              f"{diffs_body}\n"
+              "---\n"
+              f"{action_items}"
+          )
+
+          pathlib.Path('/tmp/issue-body.md').write_text(body)
+          PYEOF
+
+          # Pass body to next step via $GITHUB_ENV delimiter syntax.
+          {
+            echo 'ISSUE_BODY<<BODY_EOF'
+            cat /tmp/issue-body.md
+            echo 'BODY_EOF'
+          } >> "$GITHUB_ENV"
+
+      - name: Create or comment on GitHub issue
+        if: steps.collect.outputs.drifted == 'true'
+        uses: actions/github-script@v7
+        env:
+          HEAD_SHA: ${{ steps.fetch.outputs.head_sha }}
+          HEAD_DATE: ${{ steps.fetch.outputs.head_date }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo  = context.repo.repo;
+            const headSha  = process.env.HEAD_SHA;
+            const headDate = process.env.HEAD_DATE;
+            const body = process.env.ISSUE_BODY || '(body missing)';
+
+            // Deduplicate: if an open `spec-drift` issue already exists, append
+            // a comment with the fresh diff instead of opening a new issue.
+            // (Pattern adapted from Amperstrand/shc-toolkit's api-drift.yml.)
+            const existing = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'spec-drift',
+            });
+
+            if (existing.data.length > 0) {
+              const issue = existing.data[0];
+              console.log(`Open spec-drift issue #${issue.number} already exists — appending fresh diff as comment.`);
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issue.number,
+                body: `### Re-detected on ${headDate} @ ${headSha.slice(0, 7)}\n\n${body}`,
+              });
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner, repo,
+              title: `Spec drift: upstream centurymetadata master changed (${headSha.slice(0, 7)})`,
+              body,
+              labels: ['spec-drift', 'enhancement'],
+            });
+
+      - name: Refresh baselines (manual trigger only)
+        if: github.event_name == 'workflow_dispatch' && inputs.refresh_baseline == true
+        run: |
+          set -euo pipefail
+          for new_file in /tmp/upstream/*; do
+            name=$(basename "$new_file")
+            cp "$new_file" "docs/upstream-baseline/$name"
+            echo "Refreshed docs/upstream-baseline/$name"
+          done
+
+      - name: Commit refreshed baselines
+        if: github.event_name == 'workflow_dispatch' && inputs.refresh_baseline == true
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add docs/upstream-baseline/
+          git commit -m "chore(spec): refresh upstream baseline @ ${{ steps.fetch.outputs.head_sha }}" || {
+            echo 'No baseline changes to commit.'
+            exit 0
+          }
+          git push

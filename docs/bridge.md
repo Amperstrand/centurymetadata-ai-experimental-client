@@ -47,23 +47,27 @@ PREAMBLE[1051] | SIG[64] | WRITER_PUBKEY[33] | READER_ID[32] | GEN[8] | MLKEM_CT
 
 ### Encryption pipeline
 
-1. **Data**: `title\0content\0` pairs → gzip (level 9, zero mtime) → zero-pad to 6487 bytes
-2. **ECDH**: `SHA256(x_coordinate(writer_priv × reader_secp_pub))` → 32-byte classical secret
-3. **ML-KEM**: encapsulate to reader's ML-KEM pubkey → 32-byte post-quantum secret + 1568-byte ciphertext
-4. **AES key**: `SHA256(ECDH_secret || ML-KEM_secret)` → 32-byte key
-5. **Encrypt**: AES-256-CTR with 16-byte zero IV (nonce=0, counter=0)
-6. **Sign**: BIP-340 Schnorr over `taggedHash("centurymetadata v1", WRITER_PUBKEY || READER_ID || GEN || MLKEM_CT || AES)`
+Per upstream `python/centurymetadata/encode.py:101-113` (`encode()`):
+
+1. **Data**: `TYPE\0NAME\0CONTENTS\0` triples → gzip (level 9, mtime=0, OS byte forced to 0xff) → zero-pad to 6487 bytes
+2. **ECDH**: `SHA256(x_coordinate(writer_priv × reader_secp_pub))` → 32-byte classical secret (upstream `encode.py:76-78 get_ecdh_secret`)
+3. **ML-KEM**: encapsulate to reader's ML-KEM pubkey → 32-byte post-quantum secret + 1568-byte ciphertext (FIPS 203)
+4. **AES key**: `SHA256(ECDH_secret || ML-KEM_secret)` → 32-byte key (upstream `encode.py:86-88 get_aeskey`)
+5. **Encrypt**: AES-256-CTR with 8-byte zero nonce + 8-byte zero counter (upstream `encode.py:32-38 aes`)
+6. **Sign**: BIP-340 Schnorr over `taggedHash("centurymetadata v1", WRITER_PUBKEY || READER_ID || GEN || MLKEM_CT || AES)` (upstream `encode.py:91-94 contents` + `:97-98 sign`)
 
 An attacker must break **both** ECDH and ML-KEM to decrypt a record.
 
 ### Decryption pipeline
 
-1. Fetch bundle via `POST /api/v1/fetchxor/{directory}` (128-byte bitmask body)
-2. Scan 8192-byte slots for matching `reader_id` at offset 97
-3. Verify BIP-340 signature
-4. ECDH: `SHA256(x_coordinate(reader_secp_priv × writer_pub))`
-5. ML-KEM decapsulate: `ml_kem1024.decapsulate(MLKEM_CT, reader_mlkem_secret)`
-6. AES-256-CTR decrypt → strip gzip → parse `title\0content\0` pairs
+Per upstream `python/centurymetadata/decode.py:76-92` (`decode()`):
+
+1. Fetch bundle via `POST /api/v1/fetchxor/{directory}` (128-byte bitmask selecting bundles in the directory)
+2. Scan the 1024 × 8192-byte slots in the returned bundle for matching `reader_id` at offset 97
+3. Verify BIP-340 signature (upstream `decode.py:52-60 check_sig`)
+4. ECDH: `SHA256(x_coordinate(reader_secp_priv × writer_pub))` (upstream `encode.py:76-78`)
+5. ML-KEM decapsulate: `ml_kem1024.decapsulate(MLKEM_CT, reader_mlkem_secret)` (FIPS 203)
+6. AES-256-CTR decrypt → strip gzip → parse `TYPE\0NAME\0CONTENTS\0` triples (upstream `decode.py:10-22 decompress`)
 
 ## Architecture
 
@@ -96,9 +100,11 @@ The Worker proxy exists because testapi.centurymetadata.org is Apache with no CO
 | POST | `/cm/api/v1/update` | 9243 bytes | Upload a record (preamble + slot) |
 | POST | `/cm/api/v1/fetchxor/{directory}` | 128-byte bitmask | Fetch XOR'd bundle data |
 
-Authtoken is `0`.repeat(64) — the test API's open token.
+Authtoken is `"0" * 64` — the test API's open token, hard-coded in `python/centurymetadata/server/server.py:240-243` (`authorize()` rejects any other value with HTTP 403). The test API is not running in `TEST_MODE` today, so it does not enforce the known-keys scheme; see [`docs/SPEC-DRIFT.md`](SPEC-DRIFT.md) for the deployment-lag inventory.
 
-## Use Cases for BlossomFlare
+## Use Cases
+
+These were the original motivations for the parent BlossomFlare project this client was extracted from. They are not implemented here; this repo is a read-only learning client.
 
 1. **Blob metadata backup**: auto-write blob hashes, expiry, and ownership to centurymetadata on upload, surviving even if D1 metadata is lost
 2. **Post-quantum metadata layer**: client-side encrypt D1 metadata with quantum-resistant keys before storing
@@ -121,19 +127,32 @@ fflate's `gunzipSync` returns an empty `Uint8Array` when given gzip data followe
 
 ## Known Limitations
 
-- **Test API only**: all data goes to testapi.centurymetadata.org with authtoken `0`×64 — no authentication
-- **No production API**: centurymetadata.org itself does not have a public write API yet
-- **Single bundle**: the test API has one bundle (`00-ff`), so all users' records are in the same 8MB blob
-- **No generation increment**: the explorer always writes generation 0; a second write fails with "Generation 0 already exists"
-- **Bundle scan is O(N)**: fetching reads the entire 8MB bundle and scans every slot for a reader_id match
-- **ML-KEM-1024 bundle size**: @noble/post-quantum adds ~9KB to the frontend bundle
+- **Test API only**: all data goes to testapi.centurymetadata.org with authtoken `"0" * 64` — no production CM API exists yet (upstream)
+- **Single directory, single bundle**: the test API currently has one directory (`00-ff`) containing one bundle (also `00-ff`) holding 1024 slot positions — all users' records share the same 8 MB blob
+- **No generation increment in the UI**: the explorer always writes generation 0; a second write to the same (reader, writer) pair fails with HTTP 400 "Generation 0 already exists" (upstream `server.py:321-323`)
+- **Bundle scan is O(N)**: fetching reads the entire 8 MB response and scans every 8192-byte slot for a reader_id match
+- **ML-KEM-1024 bundle size**: @noble/post-quantum adds ~9 KB to the frontend bundle
+- **Deployment lag**: as of 2026-07-22 the public test API serves the pre-2026-07-08 spec; see [`docs/SPEC-DRIFT.md`](SPEC-DRIFT.md)
 
 ## References
 
-- [centurymetadata.org](https://centurymetadata.org) — official spec
+### Project
+
+- [centurymetadata.org](https://centurymetadata.org) — official site
 - [testapi.centurymetadata.org](https://testapi.centurymetadata.org) — public test API
-- [FIPS 203](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.203.pdf) — ML-KEM standard
-- [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0034.mediawiki) — Schnorr signatures
-- [BIP-32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) — HD key derivation
-- [NIP-06](https://github.com/nostr-protocol/nips/blob/master/06.md) — Nostr key derivation from mnemonic
-- `tests/centurymetadata-roundtrip.mjs` — Node reference implementation
+- [rustyrussell/centurymetadata (GitHub)](https://github.com/rustyrussell/centurymetadata) — reference implementation (Python, MIT)
+- [`docs/SPEC-DRIFT.md`](SPEC-DRIFT.md) — drift between this client and upstream master HEAD
+- [`CHANGELOG.md`](../CHANGELOG.md) — release history for this client
+- [`LICENSE`](../LICENSE) — MIT, with third-party notice crediting Rusty Russell
+- [`test/roundtrip.mjs`](../test/roundtrip.mjs) — Node reference implementation (mirrors upstream `examples/centurytool.py`)
+
+### Specifications implemented
+
+- [FIPS 203](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.203.pdf) — ML-KEM (lattice-based KEM, used for the post-quantum half of the hybrid encryption)
+- [BIP-32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) — HD key derivation (`m/0x44315441'/N'/{0',1',2',3'}'`)
+- [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) — mnemonic seed phrases
+- [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki) — Schnorr signatures over secp256k1 (also defines the tagged-hash construction used for the ML-KEM seed derivation `z`)
+- [BIP-380](https://github.com/bitcoin/bips/blob/master/bip-0380.mediawiki) — Output Script Descriptors (one of the 5 accepted Bitcoin record types)
+- [BIP-329](https://github.com/bitcoin/bips/blob/master/bip-0329.mediawiki) — Wallet Labels (one of the 5 accepted Bitcoin record types)
+- [NIP-06](https://github.com/nostr-protocol/nips/blob/master/06.md) — Nostr key derivation from mnemonic seed
+- [NIP-19](https://github.com/nostr-protocol/nips/blob/master/19.md) — bech32 entity encoding (npub, used by `src/lib/nostr.ts`)
