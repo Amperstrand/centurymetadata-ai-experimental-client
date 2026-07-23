@@ -153,7 +153,7 @@
     <p class="text-xs text-[#8b949e] leading-relaxed">
       Records aren't fetched individually. A client sends a 128-byte <strong class="text-[#e6edf3]">bitmask</strong>
       (1024 bits — one bit per <em>bundle</em> in the directory, per upstream README "Retrieving Entries:
-      POST /api/v1/fetchxor/{DIRECTORY}") and the server <strong class="text-[#e6edf3]">XORs</strong> the
+      POST /api/v1/fetchxor/{'{DIRECTORY}'}) and the server <strong class="text-[#e6edf3]">XORs</strong> the
       selected bundles together. A single-bit bitmask returns one raw 8 MB bundle (1024 × 8192-byte slots);
       multi-bit bitmaps mix bundles so the server can't tell which one you want. Everyone then scans the
       same 1024-slot result client-side — only your <code class="text-[#a371f7]">reader_id</code> lets you

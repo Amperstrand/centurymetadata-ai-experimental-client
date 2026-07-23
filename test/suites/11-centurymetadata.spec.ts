@@ -84,7 +84,7 @@ test.describe('CenturyMetadata — Explorer', () => {
   });
 
   test('CM-08: bundle section renders stats + grid (graceful if test API down)', async ({ page }) => {
-    test.fixme(); // TODO: remove when test API deployment catches up to master HEAD.
+    
     await toSection(page, 'bundle');
     await expect(page.getByTestId('cm-slot-grid')).toBeVisible({ timeout: 20000 });
     const cellCount = await page.locator('button[data-testid^="cm-slot-"]').count();
@@ -93,7 +93,8 @@ test.describe('CenturyMetadata — Explorer', () => {
   });
 
   test('CM-09: playground write + fetch round-trip', async ({ page }) => {
-    test.fixme(); // TODO: remove when test API deployment catches up to master HEAD.
+    test.fixme(); // Requires test API — write fails with deployment-lag preamble mismatch.
+    
     test.setTimeout(90000);
     await toSection(page, 'playground');
     // Playground now has TYPE/NAME/CONTENTS (upgraded from title/content).

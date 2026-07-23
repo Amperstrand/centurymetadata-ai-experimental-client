@@ -3,8 +3,7 @@ import { waitForApp, toSection, base } from '../helpers';
 
 const BASE = base();
 
-test.describe.fixme('CenturyMetadata — bundle + playground (network)', () => {
-  // TODO: remove .fixme when testapi.centurymetadata.org is redeployed at master HEAD.
+test.describe('CenturyMetadata — bundle + playground (network)', () => {
   // All tests in this suite require the test API for bundle fetch (8 MB, ~60s) or
   // playground write (preamble mismatch due to deployment lag). See docs/SPEC-DRIFT.md.
   test('CM-60: bundle grid renders exactly 1024 cells', async ({ page }) => {
@@ -26,6 +25,7 @@ test.describe.fixme('CenturyMetadata — bundle + playground (network)', () => {
   });
 
   test('CM-62: bundle refresh button is clickable and does not throw', async ({ page }) => {
+    test.fixme(); // Requires test API — bundle refresh calls scanNetwork().
     await toSection(page, 'bundle');
     const refresh = page.getByTestId('cm-bundle-refresh');
     await expect(refresh).toBeEnabled();
@@ -70,6 +70,7 @@ test.describe.fixme('CenturyMetadata — bundle + playground (network)', () => {
   });
 
   test('CM-65: playground — write a custom record and fetch it back', async ({ page }) => {
+    test.fixme(); // Requires test API — write fails with deployment-lag preamble mismatch.
     test.setTimeout(90000);
     await toSection(page, 'playground');
     // Playground now has TYPE/NAME/CONTENTS (upgraded from title/content).
@@ -85,6 +86,7 @@ test.describe.fixme('CenturyMetadata — bundle + playground (network)', () => {
   });
 
   test('CM-66: playground — fetch with no prior write shows empty state (for a fresh reader_id)', async ({ page }) => {
+    test.fixme(); // Requires test API — fetch calls testapi.centurymetadata.org.
     // Use a mnemonic nobody has written to before. random 12-word phrase is unlikely to have data.
     await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(800);

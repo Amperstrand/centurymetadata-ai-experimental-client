@@ -25,7 +25,7 @@ test.describe('CenturyMetadata — edge cases + robustness', () => {
   });
 
   test('CM-82: no console errors on initial load', async ({ page }) => {
-    test.fixme(); // Pre-existing: 1 console error on load (non-blocking, not from our changes).
+    
     const errors = await collectConsoleErrors(page);
     await waitForApp(page);
     await page.waitForTimeout(1000);
