@@ -88,8 +88,6 @@ test.describe('capture per-section screenshots', () => {
     });
   });
   test('shot-playground', async ({ page }) => {
-    test.fixme(); // Requires test API — cm-fetch-btn triggers 60s bundle scan.
-    
     await gotoAndRun(page, 'playground', async (p) => {
       await p.getByTestId('cm-fetch-btn').click();
       await expect(p.getByTestId('cm-records')).toBeVisible({ timeout: 45000 });

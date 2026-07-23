@@ -93,18 +93,13 @@ test.describe('CenturyMetadata — Explorer', () => {
   });
 
   test('CM-09: playground write + fetch round-trip', async ({ page }) => {
-    test.fixme(); // Requires test API — write fails with deployment-lag preamble mismatch.
-    
-    test.setTimeout(90000);
+    test.setTimeout(240000);
     await toSection(page, 'playground');
-    // Playground now has TYPE/NAME/CONTENTS (upgraded from title/content).
-    // Defaults from RECORD_EXAMPLES are pre-filled, so we just click write.
     await page.getByTestId('cm-write-btn').click();
-    // Accept either success or "Incorrect preamble" (test API deployment lag).
-    await expect(page.getByTestId('cm-write-status')).toContainText(/Upload:/i, { timeout: 45000 });
+    await expect(page.getByTestId('cm-write-status')).toContainText(/Upload:/i, { timeout: 180000 });
     await page.waitForTimeout(2000);
     await page.getByTestId('cm-fetch-btn').click();
-    await expect(page.getByTestId('cm-records')).toBeVisible({ timeout: 45000 });
+    await expect(page.getByTestId('cm-records')).toBeVisible({ timeout: 90000 });
     await shot(page, '11-cm-roundtrip');
   });
 });

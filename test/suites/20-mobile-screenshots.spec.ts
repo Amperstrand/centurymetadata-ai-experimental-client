@@ -65,9 +65,8 @@ test.describe('mobile screenshots (375px)', () => {
   });
   test('mobile-nodevsbrowser', async ({ page }) => { await mobileShot(page, 'nodevsbrowser'); });
   test('mobile-bundle', async ({ page }) => {
-    test.fixme(); // Bundle grid visibility issue at 375px viewport.
-    
     await mobileShot(page, 'bundle', async (p) => {
+      await p.waitForTimeout(2000);
       await expect(p.getByTestId('cm-slot-grid')).toBeVisible({ timeout: 20000 });
       await p.waitForTimeout(1500);
     });
