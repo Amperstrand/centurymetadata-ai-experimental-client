@@ -28,7 +28,7 @@ test.describe('CenturyMetadata — navigation + tour', () => {
   });
 
   test('CM-31: clicking each nav button brings its section into view', async ({ page }) => {
-    test.setTimeout(60000);
+    test.slow();
     await waitForApp(page);
     let failures: string[] = [];
     for (const id of ALL_SECTION_IDS) {

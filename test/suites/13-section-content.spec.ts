@@ -29,8 +29,8 @@ test.describe('CenturyMetadata — section content', () => {
   });
 
   test('CM-21: overview shows the BIP-39 → two ecosystems diagram', async ({ page }) => {
-    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
+    await waitForApp(page);
+    await page.waitForTimeout(500);
     const overview = page.locator('#cm-section-overview');
     await expect(overview).toContainText('BIP-39 SEED PHRASE');
     await expect(overview).toContainText('NIP-06 PATH');
