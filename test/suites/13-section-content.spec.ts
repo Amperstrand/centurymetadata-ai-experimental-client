@@ -29,8 +29,8 @@ test.describe('CenturyMetadata — section content', () => {
   });
 
   test('CM-21: overview shows the BIP-39 → two ecosystems diagram', async ({ page }) => {
-    test.fixme(); // Pre-existing: timing issue with Svelte hydration in CI.
     await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(500);
     const overview = page.locator('#cm-section-overview');
     await expect(overview).toContainText('BIP-39 SEED PHRASE');
     await expect(overview).toContainText('NIP-06 PATH');
@@ -74,8 +74,8 @@ test.describe('CenturyMetadata — section content', () => {
   });
 
   test('CM-24: Bundle section describes the XOR bitmask mechanism', async ({ page }) => {
-    test.fixme(); // Pre-existing: bundle section render timing in CI.
     await toSection(page, 'bundle');
+    await page.waitForTimeout(500);
     const sec = page.locator('#cm-section-bundle');
     await expect(sec).toContainText('bitmask');
     await expect(sec).toContainText('XORs');

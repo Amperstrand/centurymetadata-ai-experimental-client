@@ -351,6 +351,92 @@ test('N=2147483647 reader_id matches upstream vector 2', () => {
   assert.equal(toHex(readerId), EXPECTED_NMAX.READER_ID);
 });
 
+console.log('\n=== FULL ENCODE → DECODE ROUND-TRIP ===\n');
+
+test('encode→decode: TYPE\\0NAME\\0CONTENTS\\0 triples survive full pipeline', () => {
+  const INPUT_TRIPLES = [
+    ['bitcoin wallet labels', 'savings', '{"type":"addr","ref":"bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4","label":"savings"}'],
+    ['bitcoin psbt', 'unsigned', 'cHNidP8BAHUCAAAAASaBcTce3/KFHeE2a6QAHfxqcrxfHGgG7vid5hU+nQITAAAA'],
+  ];
+
+  const p = hd.deriveChild(harden(CM_PURPOSE));
+  const c = p.deriveChild(harden(0));
+  const writerPriv = c.deriveChild(harden(0)).privateKey;
+  const readerSecpPriv = c.deriveChild(harden(1)).privateKey;
+  const readerMlkemSeedD = c.deriveChild(harden(3)).privateKey;
+
+  const writerPub = new Uint8Array(secp256k1.getPublicKey(writerPriv, true));
+  const readerSecpPub = new Uint8Array(secp256k1.getPublicKey(readerSecpPriv, true));
+  const mlkemZ = taggedHash(MLKEM_Z_TAG, readerMlkemSeedD);
+  const mlkemKeys = ml_kem1024.keygen(concat(readerMlkemSeedD, mlkemZ));
+  const readerId = sha256(concat(readerSecpPub, new Uint8Array(mlkemKeys.publicKey)));
+
+  // --- ENCODE ---
+  const ecdhSecret = computeEcdh(writerPriv, readerSecpPub);
+  const encap = ml_kem1024.encapsulate(new Uint8Array(mlkemKeys.publicKey));
+  const mlkemCt = new Uint8Array(encap.cipherText);
+  const mlkemSecret = new Uint8Array(encap.sharedSecret);
+  const aesKey = sha256(concat(ecdhSecret, mlkemSecret));
+
+  const enc = new TextEncoder();
+  let rawData = new Uint8Array(0);
+  for (const [type, name, contents] of INPUT_TRIPLES) {
+    rawData = concat(rawData, enc.encode(type), new Uint8Array([0]), enc.encode(name), new Uint8Array([0]), enc.encode(contents), new Uint8Array([0]));
+  }
+  const compressed = gzipSync(rawData, { level: 9 });
+  compressed[4] = 0; compressed[5] = 0; compressed[6] = 0; compressed[7] = 0;
+  if (compressed.length > 9) compressed[9] = 0xff;
+  const DATA_LENGTH = 6487;
+  if (compressed.length > DATA_LENGTH) throw new Error('Compressed data too large');
+  const padded = new Uint8Array(DATA_LENGTH);
+  padded.set(compressed);
+
+  const cipher = createCipheriv('aes-256-ctr', Buffer.from(aesKey), Buffer.alloc(16, 0));
+  const encrypted = Buffer.concat([cipher.update(Buffer.from(padded)), cipher.final()]);
+
+  const genBytes = Buffer.alloc(8);
+  const content = concat(writerPub, readerId, new Uint8Array(genBytes), mlkemCt, new Uint8Array(encrypted));
+  const prehash = taggedHash(BIP340_TAG, content);
+  const sig = new Uint8Array(schnorr.sign(prehash, writerPriv));
+
+  // --- DECODE ---
+  const decodeContent = content;
+  const decodePrehash = taggedHash(BIP340_TAG, decodeContent);
+  const writerXOnly = writerPub.subarray(1, 33);
+  const sigValid = schnorr.verify(sig, decodePrehash, writerXOnly);
+  assert.ok(sigValid, 'Signature must verify');
+
+  const decodeEcdh = computeEcdh(readerSecpPriv, writerPub);
+  const decodeMlkemSecret = ml_kem1024.decapsulate(mlkemCt, new Uint8Array(mlkemKeys.secretKey));
+  const decodeAesKey = sha256(concat(decodeEcdh, new Uint8Array(decodeMlkemSecret)));
+
+  const decipher = createDecipheriv('aes-256-ctr', Buffer.from(decodeAesKey), Buffer.alloc(16, 0));
+  const decrypted = Buffer.concat([decipher.update(Buffer.from(encrypted)), decipher.final()]);
+
+  const FLG = decrypted[3];
+  let off = 10;
+  if (FLG & 0x04) { const xl = decrypted[off] | (decrypted[off + 1] << 8); off += 2 + xl; }
+  if (FLG & 0x08) { while (off < decrypted.length && decrypted[off] !== 0) off++; off++; }
+  if (FLG & 0x10) { while (off < decrypted.length && decrypted[off] !== 0) off++; off++; }
+  if (FLG & 0x02) { off += 2; }
+  const decompressed = inflateSync(decrypted.subarray(off));
+
+  const text = new TextDecoder().decode(decompressed);
+  const parts = text.split('\0');
+  if (parts[parts.length - 1] === '') parts.pop();
+
+  assert.equal(parts.length, INPUT_TRIPLES.length * 3,
+    `Expected ${INPUT_TRIPLES.length * 3} fields (${INPUT_TRIPLES.length} triples), got ${parts.length}`);
+
+  for (let i = 0; i < INPUT_TRIPLES.length; i++) {
+    const [expType, expName, expContents] = INPUT_TRIPLES[i];
+    const base = i * 3;
+    assert.equal(parts[base], expType, `Triple ${i} TYPE mismatch`);
+    assert.equal(parts[base + 1], expName, `Triple ${i} NAME mismatch`);
+    assert.equal(parts[base + 2], expContents, `Triple ${i} CONTENTS mismatch`);
+  }
+});
+
 console.log('\n=== BIP-39 PASSPHRASE ===\n');
 
 test('Different passphrase produces different seed', () => {

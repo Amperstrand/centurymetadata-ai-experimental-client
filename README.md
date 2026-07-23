@@ -77,6 +77,15 @@ docs/bridge.md                        design notes (Nostr ↔ centurymetadata br
 - Post-quantum (`@noble/post-quantum`, ~9 KB) is bundled — it's the whole point.
 - **Why Cloudflare Pages (not GitHub Pages)?** `testapi.centurymetadata.org` sends zero CORS headers, so direct browser `fetch()` from any origin is blocked by the browser's same-origin policy. This app requires a server-side proxy (`functions/cm/[[path]].ts`) that adds `Access-Control-Allow-Origin: *` to the upstream response. GitHub Pages is static-only (no server-side processing), so it cannot host this proxy. Cloudflare Pages Functions provide the server-side execution environment needed. Migrating to GitHub Pages would require splitting the deployment into GitHub Pages (SPA) + a separate Cloudflare Worker (proxy) = two deployments instead of one.
 
+## Known test identities
+
+The Keys section includes a **known-word picker** — a dropdown listing 130 BIP-39 words whose 12× repeated form (e.g., `action action action … action`) has a valid checksum. Selecting one derives a "known test identity" per the upstream [known_keys.py](https://github.com/rustyrussell/centurymetadata/blob/master/python/centurymetadata/server/known_keys.py) scheme:
+
+- **First half** (by wordlist position): self-authored — the record's `WRITER_PUBKEY` must match the identity's own derived writer key (badge: ✍ self-authored)
+- **Second half**: reserved for the test server's pre-populated example data (badge: 📊 example data)
+
+When the test server runs in `TEST_MODE`, only known reader identities may authorize/update records, and each record's `TYPE` + `CONTENTS` is validated against the spec (see [`validate.py`](https://github.com/rustyrussell/centurymetadata/blob/master/python/centurymetadata/validate.py)). The Playground section's TYPE dropdown provides valid examples for all 5 accepted Bitcoin record types.
+
 ## References
 
 - [centurymetadata.org](https://centurymetadata.org) · [test API](https://testapi.centurymetadata.org) · [upstream source](https://github.com/rustyrussell/centurymetadata)

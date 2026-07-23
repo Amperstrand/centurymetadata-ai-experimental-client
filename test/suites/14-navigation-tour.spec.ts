@@ -28,8 +28,8 @@ test.describe('CenturyMetadata — navigation + tour', () => {
   });
 
   test('CM-31: clicking each nav button brings its section into view', async ({ page }) => {
-    test.fixme(); // Pre-existing: scroll-into-view timing in CI.
     await waitForApp(page);
+    await page.waitForTimeout(500);
     let failures: string[] = [];
     for (const id of ALL_SECTION_IDS) {
       await page.getByTestId(`cm-nav-${id}`).click();

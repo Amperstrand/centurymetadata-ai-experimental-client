@@ -157,22 +157,22 @@ function gzipDecompress(data: Uint8Array): Uint8Array {
 // AES-256-CTR with 8-byte nonce + 8-byte counter (both zero) — matches Python
 // `AES.new(key=aeskey, mode=AES.MODE_CTR, nonce=bytes(8))`.
 async function aesCtrEncrypt(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
-  const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'AES-CTR' }, false, ['encrypt']);
+  const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(key), { name: 'AES-CTR' }, false, ['encrypt']);
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-CTR', counter: new Uint8Array(16), length: 128 },
     cryptoKey,
-    data,
+    new Uint8Array(data),
   );
   return new Uint8Array(encrypted);
 }
 
 // Upstream provenance: decode.py:25-31 unaes (decryption counterpart of encode.py:32-38 aes).
 async function aesCtrDecrypt(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
-  const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'AES-CTR' }, false, ['decrypt']);
+  const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(key), { name: 'AES-CTR' }, false, ['decrypt']);
   const decrypted = await crypto.subtle.decrypt(
     { name: 'AES-CTR', counter: new Uint8Array(16), length: 128 },
     cryptoKey,
-    data,
+    new Uint8Array(data),
   );
   return new Uint8Array(decrypted);
 }
@@ -454,7 +454,7 @@ export async function uploadRecord(
   const res = await fetch(`${PROXY_BASE}/update`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-centurymetadata' },
-    body: fullRecord,
+    body: new Uint8Array(fullRecord),
   });
   const text = await res.text();
   return { ok: res.ok, status: res.status, text };
@@ -559,10 +559,10 @@ export async function fetchSlotPrivate(
 
     const [resA, resB] = await Promise.all([
       fetch(`${serverBaseA}/fetchxor/${bundle.directory}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: maskA,
+        method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: new Uint8Array(maskA),
       }),
       fetch(`${serverBaseB}/fetchxor/${bundle.directory}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: maskB,
+        method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: new Uint8Array(maskB),
       }),
     ]);
     const dataA = new Uint8Array(await resA.arrayBuffer());
