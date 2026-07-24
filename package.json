@@ -1,9 +1,17 @@
 {
   "name": "centurymetadata-ai-experimental-client",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Interactive learning client for centurymetadata (post-quantum key-value store). Extracted from blossomflare.",
+  "description": "Interactive learning client for centurymetadata (post-quantum key-value store). TypeScript port of the Python reference implementation.",
+  "exports": {
+    ".": {
+      "types": "./src/lib/cm/index.ts",
+      "import": "./src/lib/cm/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
   "scripts": {
     "dev": "vite",
     "build": "vite build",

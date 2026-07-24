@@ -506,19 +506,19 @@ console.log('\n=== SPEC DRIFT: PREAMBLE constant vs upstream constants.py ===\n'
 // Refs:
 //   upstream constants.py:1-19 — defines `verheader + preamble` byte-exact
 //   upstream commit c750c08 (2026-07-08) — wire format TITLE\0CONTENTS\0 → TYPE\0NAME\0CONTENTS\0
-//   Our encoder in src/lib/centurymetadata.ts already produces triples; the PREAMBLE
+//   Our encoder in src/lib/cm/encode.ts already produces triples; the PREAMBLE
 //   text-constant must describe triples too, otherwise uploads fail with
 //   "Incorrect preamble" against any server running current master (decode.deconstruct
 //   does startswith(preamble) verification).
 
-test('src/lib/centurymetadata.ts PREAMBLE describes TYPE\\0NAME\\0CONTENTS\\0 triples', () => {
-  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+test('src/lib/cm/constants.ts PREAMBLE describes TYPE\\0NAME\\0CONTENTS\\0 triples', () => {
+  const src = readFileSync('src/lib/cm/constants.ts', 'utf8');
   // TS source: inside the body literal, NUL bytes are written as \\0 (escaped). Upstream
   // constants.py line 19 ends with: DATA: gzip([TYPE\0NAME\0CONTENTS\0]+), padded with 0 bytes to 6487\0
   // Our source must mirror that exactly (5 more bytes than the old TITLE\0CONTENTS\0 form).
   assert.ok(
     src.includes("'DATA: gzip([TYPE\\\\0NAME\\\\0CONTENTS\\\\0]+), padded with 0 bytes to 6487\\0'"),
-    "PREAMBLE body in src/lib/centurymetadata.ts must end with: 'DATA: gzip([TYPE\\0NAME\\0CONTENTS\\0]+), padded with 0 bytes to 6487\\0' " +
+    "PREAMBLE body in src/lib/cm/constants.ts must end with: 'DATA: gzip([TYPE\\0NAME\\0CONTENTS\\0]+), padded with 0 bytes to 6487\\0' " +
     "(mirrors upstream constants.py since commit c750c08 on 2026-07-08). Currently still has the old TITLE\\0CONTENTS\\0 form."
   );
 });
@@ -574,9 +574,9 @@ console.log('\n=== SPEC DRIFT: XOR-PIR target bit must be bundle.index, not slot
 // `generateXorPirMasks(bundle.index)` to hide WHICH bundle in the directory.
 
 test('fetchSlotPrivate uses bundle.index as the XOR-PIR target bit', () => {
-  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  const src = readFileSync('src/lib/cm/network.ts', 'utf8');
   const fnMatch = src.match(/export async function fetchSlotPrivate[\s\S]*?\n}\n/);
-  assert.ok(fnMatch, 'fetchSlotPrivate function body not found in src/lib/centurymetadata.ts');
+  assert.ok(fnMatch, 'fetchSlotPrivate function body not found in src/lib/cm/network.ts');
   const fnBody = fnMatch[0];
   // Strip line + block comments so the assertions look only at executable code.
   const codeOnly = fnBody
@@ -669,25 +669,25 @@ console.log('\n=== SPEC DRIFT: centurymetadata.ts header docstring must say "bun
 //   applied to CmBundleSystem.svelte:154-157 but the file-level JSDoc in
 //   centurymetadata.ts:42-48 was missed.
 
-test('src/lib/centurymetadata.ts header docstring says fetchxor bitmask selects bundles', () => {
-  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+test('src/lib/cm/index.ts header docstring says fetchxor bitmask selects bundles', () => {
+  const src = readFileSync('src/lib/cm/index.ts', 'utf8');
   // The "Bundle retrieval" section of the file-level JSDoc must use bundle terminology.
   const bundleSection = src.match(/== Bundle retrieval ==[\s\S]*?==/);
-  assert.ok(bundleSection, 'Could not find == Bundle retrieval == section in centurymetadata.ts header');
+  assert.ok(bundleSection, 'Could not find == Bundle retrieval == section in src/lib/cm/index.ts header');
   const section = bundleSection[0];
   assert.ok(
     /bitmask selecting which bundles[\s\S]*?to include/.test(section),
-    'centurymetadata.ts header "Bundle retrieval" section must say "bitmask selecting which bundles to include" ' +
+    'src/lib/cm/index.ts header "Bundle retrieval" section must say "bitmask selecting which bundles to include" ' +
     '(per upstream README "Retrieving Entries"). Currently still says "slots".'
   );
   assert.ok(
     /single-bit bitmask, you get the raw bundle/.test(section),
-    'centurymetadata.ts header must say "single-bit bitmask, you get the raw bundle" ' +
+    'src/lib/cm/index.ts header must say "single-bit bitmask, you get the raw bundle" ' +
     '(a bundle is 1024 slots = 8 MB, not a single slot).'
   );
   assert.ok(
     !/selecting which slots to include/.test(section) && !/XORs selected slots/.test(section),
-    'centurymetadata.ts header still uses "slots" terminology for the fetchxor bitmask. ' +
+    'src/lib/cm/index.ts header still uses "slots" terminology for the fetchxor bitmask. ' +
     'The bitmask selects BUNDLES within a DIRECTORY.'
   );
 });
@@ -699,7 +699,7 @@ console.log('\n=== KNOWN KEYS SCHEME (upstream known_words.txt) ===\n');
 //   First half = self-authored, second half = example data.
 
 test('KNOWN_WORDS has exactly 130 entries', () => {
-  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  const src = readFileSync('src/lib/cm/keys.ts', 'utf8');
   // Extract the Object.freeze([...]) block for KNOWN_WORDS
   const match = src.match(/KNOWN_WORDS[^;]*Object\.freeze\(\[\s*([\s\S]*?)\]\)/);
   assert.ok(match, 'KNOWN_WORDS Object.freeze array not found');
@@ -709,7 +709,7 @@ test('KNOWN_WORDS has exactly 130 entries', () => {
 });
 
 test('KNOWN_WORDS includes action, agent, aim (first) and word, world, yellow (last)', () => {
-  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  const src = readFileSync('src/lib/cm/keys.ts', 'utf8');
   assert.ok(src.includes("'action'"), 'KNOWN_WORDS must include "action" (first known word)');
   assert.ok(src.includes("'agent'"), 'KNOWN_WORDS must include "agent"');
   assert.ok(src.includes("'aim'"), 'KNOWN_WORDS must include "aim"');
@@ -719,7 +719,7 @@ test('KNOWN_WORDS includes action, agent, aim (first) and word, world, yellow (l
 });
 
 test('knownWordMnemonic produces word ×12', () => {
-  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  const src = readFileSync('src/lib/cm/keys.ts', 'utf8');
   // The function should join 12 copies of the word with spaces
   assert.ok(
     /function knownWordMnemonic[\s\S]*?Array\.from\(\s*\{\s*length:\s*12\s*\}/.test(src) ||
@@ -729,7 +729,7 @@ test('knownWordMnemonic produces word ×12', () => {
 });
 
 test('isSelfAuthoredWord: first half = self-authored, second half = example data', () => {
-  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  const src = readFileSync('src/lib/cm/keys.ts', 'utf8');
   // The function must split at the midpoint (65 for 130 words)
   assert.ok(
     /isSelfAuthoredWord[\s\S]*?<\s*Math\.floor\s*\(\s*KNOWN_WORDS\.length\s*\/\s*2\s*\)/.test(src),
@@ -738,7 +738,7 @@ test('isSelfAuthoredWord: first half = self-authored, second half = example data
 });
 
 test('RECORD_EXAMPLES has all 5 accepted Bitcoin types', () => {
-  const src = readFileSync('src/lib/centurymetadata.ts', 'utf8');
+  const src = readFileSync('src/lib/cm/keys.ts', 'utf8');
   for (const type of ['bitcoin psbt', 'bitcoin transaction', 'bitcoin miniscript',
                        'bitcoin output script descriptor', 'bitcoin wallet labels']) {
     assert.ok(

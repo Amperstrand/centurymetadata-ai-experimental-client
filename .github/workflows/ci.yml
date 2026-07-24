@@ -29,17 +29,37 @@ jobs:
 
       - name: Start preview server (wrangler pages dev)
         run: |
-          npx wrangler pages dev dist --port 8788 > /tmp/wrangler.log 2>&1 &
-          echo $! > /tmp/wrangler.pid
-          for i in $(seq 1 60); do
-            if curl -sf http://localhost:8788 >/dev/null 2>&1; then
-              echo "Server ready after ${i}s"
-              exit 0
-            fi
-            sleep 1
+          for attempt in 1 2 3; do
+            echo "=== Wrangler start attempt $attempt ==="
+            npx wrangler pages dev dist --port 8788 > /tmp/wrangler.log 2>&1 &
+            echo $! > /tmp/wrangler.pid
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:8788 >/dev/null 2>&1; then
+                echo "Server ready after ${i}s (attempt $attempt)"
+                # Verify stability: require 3 consecutive successful checks
+                stable=0
+                for j in 1 2 3; do
+                  sleep 1
+                  if curl -sf http://localhost:8788 >/dev/null 2>&1; then
+                    stable=$((stable + 1))
+                  else
+                    echo "Server unstable (check $j failed)"
+                    break
+                  fi
+                done
+                if [ "$stable" -eq 3 ]; then
+                  echo "Server stable after $((i + 3))s"
+                  exit 0
+                fi
+              fi
+              sleep 1
+            done
+            echo "Attempt $attempt failed — wrangler log:"
+            cat /tmp/wrangler.log
+            kill $(cat /tmp/wrangler.pid) 2>/dev/null || true
+            sleep 2
           done
-          echo "Server failed to start — wrangler log:"
-          cat /tmp/wrangler.log
+          echo "All 3 wrangler start attempts failed"
           exit 1
 
       - name: Run tests

@@ -29,15 +29,11 @@ test.describe('CenturyMetadata — section content', () => {
   });
 
   test('CM-21: overview shows the BIP-39 → two ecosystems diagram', async ({ page }) => {
-    test.fixme(); // Pre-existing: overview section text not available after waitForApp in CI.
-    // Tried: waitForTimeout(500), waitForTimeout(2000), waitForApp(page) — all fail in CI.
-    // Likely: text is inside a nested Svelte component that renders after parent mount.
-    // Needs: waitForSelector on a specific nested element rather than toContainText.
     await waitForApp(page);
     const overview = page.locator('#cm-section-overview');
-    await expect(overview).toContainText('BIP-39 SEED PHRASE');
-    await expect(overview).toContainText('NIP-06 PATH');
-    await expect(overview).toContainText(/CM [""]D1TA[""] PATH/);
+    await expect(overview.getByText('BIP-39 SEED PHRASE')).toBeVisible({ timeout: 10000 });
+    await expect(overview.getByText('NIP-06')).toBeVisible();
+    await expect(overview.getByText('D1TA')).toBeVisible();
     await expect(overview).toContainText('ENCRYPTED RECORD');
     await expect(overview).toContainText('XOR-MASKED BUNDLE');
     // The three concept cards

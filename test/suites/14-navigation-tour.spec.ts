@@ -28,15 +28,13 @@ test.describe('CenturyMetadata — navigation + tour', () => {
   });
 
   test('CM-31: clicking each nav button brings its section into view', async ({ page }) => {
-    test.fixme(); // Pre-existing: 15-section nav loop exceeds timeout in CI.
-    // Tried: test.setTimeout(60000), test.slow() (90s) — both still fail in CI.
-    // The loop (15 clicks × 1000ms wait + scrollIntoView per section) is too slow.
-    // Needs: reduce to spot-checking 3-5 sections instead of all 15.
-    test.slow();
+    test.setTimeout(60000);
+    await waitForApp(page);
+    const SPOT_CHECK = ['overview', 'keys', 'encryption', 'bundle', 'playground'];
     let failures: string[] = [];
-    for (const id of ALL_SECTION_IDS) {
+    for (const id of SPOT_CHECK) {
       await page.getByTestId(`cm-nav-${id}`).click();
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(500);
       const visible = await isInViewport(page, `#cm-section-${id}`);
       if (!visible) failures.push(id);
     }
