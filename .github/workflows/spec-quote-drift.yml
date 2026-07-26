@@ -1,0 +1,77 @@
+---
+# Workflow: greatspectations spec-quote drift detection for centurymetadata client.
+#
+# COMPLEMENTARY to the existing .github/workflows/spec-drift.yml:
+#   - spec-drift.yml (existing, weekly cron) detects when the UPSTREAM
+#     rustyrussell/centurymetadata spec CHANGES (file-diff against
+#     docs/upstream-baseline/).
+#   - spec-quote-drift.yml (THIS workflow) detects when OUR CODE drifts
+#     from the current spec by checking that embedded `// CM: <quote>`
+#     comments in src/lib/cm/*.ts match the spec text verbatim.
+#
+# Together they form a two-layer drift safety net:
+#   spec-drift.yml       → "the spec moved, reconcile your code + baselines"
+#   spec-quote-drift.yml → "your code's spec quotes are stale or inaccurate"
+#
+# Tool: https://github.com/rustyrussell/greatspectations
+# Spec:  https://github.com/rustyrussell/centurymetadata (README.md)
+#
+# Status: NON-BLOCKING (continue-on-error: true) during feasibility trial.
+#
+# Local usage:
+#   git clone --depth=1 https://github.com/rustyrussell/centurymetadata.git spec
+#   npm run spec:check
+
+name: spec-quote-drift
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  spectate:
+    name: greatspectations spec-quote check
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Trial: non-blocking. Remove after trial acceptance.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install greatspectations
+        run: |
+          git clone --depth=1 https://github.com/rustyrussell/greatspectations.git /tmp/gs
+          pip install -e /tmp/gs
+
+      - name: Clone centurymetadata spec
+        run: git clone --depth=1 https://github.com/rustyrussell/centurymetadata.git spec
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Run spectate check (spec-quote drift)
+        run: npm run spec:check
+
+      - name: Run spectate coverage (uncovered MUST clauses)
+        run: npm run spec:coverage
+        continue-on-error: true
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spec-coverage-report
+          path: .coverage
+          if-no-files-found: ignore
+          retention-days: 14

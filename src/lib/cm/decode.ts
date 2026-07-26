@@ -39,6 +39,7 @@ export async function decodeSlot(
   const decodeContent = slot.subarray(64);
   const decodePrehash = taggedHash(BIP340_TAG, decodeContent);
   const writerXOnly = slotWriterPub.subarray(1, 33);
+  // CM: SIG: BIP-340 SHA256(TAG|TAG|WRITER_PUBKEY|READER_ID|GEN|MLKEM_CT|AES)
   const sigValid = schnorr.verify(slotSig, decodePrehash, writerXOnly);
 
   const decodeEcdhSecret = computeEcdh(keys.readerSecpPrivKey, slotWriterPub);

@@ -38,8 +38,10 @@ export async function encodeRecord(
   const mlkemCt = new Uint8Array(encap.cipherText);
   const mlkemSecret = new Uint8Array(encap.sharedSecret);
 
+  // CM: AESKEY: SHA256(ECDH_SECRET|MLKEM_SECRET)
   const aesKey = sha256(concatBytes(ecdhSecret, mlkemSecret));
 
+  // CM: DATA: gzip([TYPE\0NAME\0CONTENTS\0]+), padded with 0 bytes to 6487\0
   const encoder = new TextEncoder();
   const parts: Uint8Array[] = [];
   for (const [type, name, contents] of triples) {
@@ -64,6 +66,7 @@ export async function encodeRecord(
     encrypted,
   );
 
+  // CM: SIG: BIP-340 SHA256(TAG|TAG|WRITER_PUBKEY|READER_ID|GEN|MLKEM_CT|AES)
   const prehash = taggedHash(BIP340_TAG, contentBytes);
   const sig = schnorr.sign(prehash, keys.writerPrivKey);
   const slot = concatBytes(sig, contentBytes);

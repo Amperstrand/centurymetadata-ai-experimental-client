@@ -5,8 +5,11 @@ import { concatBytes } from './utils.js';
 export const FULL_LENGTH = 8192;
 export const MLKEM_CT_LENGTH = 1568;
 export const DATA_LENGTH = FULL_LENGTH - (64 + 33 + 32 + 8 + MLKEM_CT_LENGTH);
+// CM: TAG: SHA256("centurymetadata v1"[18])
 export const BIP340_TAG = 'centurymetadata v1';
+// CM: MLKEM_Z_TAG: SHA256("centurymetadata v1 mlkem-z"[26])
 export const MLKEM_Z_TAG = 'centurymetadata v1 mlkem-z';
+// CM: `0x44315441'/N'/0'` through `/3'` (`DATA`),
 export const CM_PURPOSE = 0x44315441;
 export const AUTHTOKEN = '0'.repeat(64);
 export const PROXY_BASE = '/cm/api/v1';
@@ -15,10 +18,15 @@ export const READER_ID_OFFSET = 64 + 33;
 
 // Upstream provenance: python/centurymetadata/validate.py:24-30 ACCEPTED_TYPES
 export const ACCEPTED_TYPES = [
+  // CM: * Type: `bitcoin psbt`, Body: base64-encoded PSBT
   'bitcoin psbt',
+  // CM: * Type: `bitcoin transaction` Body: hex-encoded transaction
   'bitcoin transaction',
+  // CM: * Type: `bitcoin miniscript` Body: miniscript string
   'bitcoin miniscript',
+  // CM: * Type: `bitcoin output script descriptor` Body: descriptor string
   'bitcoin output script descriptor',
+  // CM: * Type: `bitcoin wallet labels` Body: BIP-329 JSONL
   'bitcoin wallet labels',
 ] as const;
 
@@ -27,6 +35,7 @@ export const ACCEPTED_TYPES = [
 // The body text MUST match upstream verbatim — the test server's decode.deconstruct() does
 // `cmetadata.startswith(preamble)` verification, so any byte difference causes HTTP 400 "Incorrect preamble".
 // Drift guard: test/unit-tests.mjs → "PREAMBLE describes TYPE\0NAME\0CONTENTS\0 triples".
+// CM: centurymetadata v1\0SIG[64]|WRITER_PUBKEY[33]|READER_ID[32]|GEN[8]|MLKEM_CT[1568]|AES[6487]
 export const PREAMBLE = (() => {
   const verheader = new TextEncoder().encode('centurymetadata v1\0');
   const bodyStr =

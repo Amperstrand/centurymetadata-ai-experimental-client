@@ -6,6 +6,7 @@ import { gzipSync, inflateSync } from 'fflate';
 // libsecp256k1 ECDH default hashfn = SHA256(x-coordinate of the shared point).
 // @noble/curves' getSharedSecret returns compressed point [0x02|0x03, x(32), y(32)];
 // we hash bytes [1..33] = the x coordinate.
+// CM: ECDH_SECRET: EC Diffie-Hellman of WRITER_PUBKEY and READER_SECP_PRIVKEY
 export function computeEcdh(myPrivKey: Uint8Array, theirPubKeyCompressed: Uint8Array): Uint8Array {
   const shared = secp256k1.getSharedSecret(myPrivKey, theirPubKeyCompressed);
   return sha256(shared.subarray(1, 33));
@@ -38,6 +39,7 @@ export function gzipDecompress(data: Uint8Array): Uint8Array {
 // Upstream provenance: encode.py:32-38 aes / decode.py:25-31 unaes
 // AES-256-CTR with 8-byte nonce + 8-byte counter (both zero) — matches Python
 // `AES.new(key=aeskey, mode=AES.MODE_CTR, nonce=bytes(8))`.
+// CM: AES: CTR mode (starting 0, nonce 0) using AESKEY of DATA
 export async function aesCtrEncrypt(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
   const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(key), { name: 'AES-CTR' }, false, ['encrypt']);
   const encrypted = await crypto.subtle.encrypt(

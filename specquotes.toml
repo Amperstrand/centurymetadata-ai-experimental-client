@@ -1,0 +1,25 @@
+# greatspectations spec-quote drift config for centurymetadata-ai-experimental-client
+#
+# Tool: https://github.com/rustyrussell/greatspectations
+# Spec: https://github.com/rustyrussell/centurymetadata (README.md, single-file)
+#
+# Comment marker syntax in TypeScript source:
+#   // CM: <verbatim spec quote from README.md>
+#   // CM/File Format: <quote restricted to sections whose header contains "File Format">
+#
+# Setup (one-time, local):
+#   git clone --depth=1 https://github.com/rustyrussell/centurymetadata.git spec
+#   pip install git+https://github.com/rustyrussell/greatspectations.git
+#
+# Run:
+#   npm run spec:check
+#   npm run spec:coverage
+#
+# COMPLEMENTARY to .github/workflows/spec-drift.yml:
+#   spec-drift.yml      → detects when the UPSTREAM spec changes (file-diff)
+#   spec-quote-drift    → detects when OUR CODE drifts from the spec (quote-match)
+
+[sources.CM]
+format = "markdown"
+file = "spec/README.md"
+comment_marker = "CM"
