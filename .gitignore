@@ -12,7 +12,6 @@ test/playwright/report/
 .playwright-mcp/
 
 # greatspectations artifacts (spec-quote drift checker)
-/spec
 .coverage
 .spectate-*
 dashboard-*.png

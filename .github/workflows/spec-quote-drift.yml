@@ -16,7 +16,7 @@
 # Tool: https://github.com/rustyrussell/greatspectations
 # Spec:  https://github.com/rustyrussell/centurymetadata (README.md)
 #
-# Status: NON-BLOCKING (continue-on-error: true) during feasibility trial.
+# Status: BLOCKING — spec-quote drift enforcement on every push/PR.
 #
 # Local usage:
 #   git clone --depth=1 https://github.com/rustyrussell/centurymetadata.git spec
@@ -35,7 +35,6 @@ jobs:
   spectate:
     name: greatspectations spec-quote check
     runs-on: ubuntu-latest
-    continue-on-error: true  # Trial: non-blocking. Remove after trial acceptance.
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
