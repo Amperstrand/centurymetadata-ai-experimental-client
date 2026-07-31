@@ -19,8 +19,8 @@
     "test:roundtrip": "node test/roundtrip.mjs",
     "test:unit": "node test/unit-tests.mjs",
     "test:e2e": "playwright test",
-    "spec:check": "spectate check --config specquotes.toml --comment-start '// ' --comment-continue '//' -k src/lib/cm/*.ts",
-    "spec:coverage": "spectate check --config specquotes.toml --comment-start '// ' --comment-continue '//' --coverage .coverage -k src/lib/cm/*.ts && spectate coverage --config specquotes.toml --coverage .coverage --all-sections"
+    "spec:check": "greatspectate check --config specquotes.toml --comment-start '// ' --comment-continue '//' -k src/lib/cm/*.ts",
+    "spec:coverage": "greatspectate check --config specquotes.toml --comment-start '// ' --comment-continue '//' --coverage .coverage -k src/lib/cm/*.ts && greatspectate coverage --config specquotes.toml --coverage .coverage --all-sections"
   },
   "dependencies": {
     "@noble/curves": "^2.2.0",
