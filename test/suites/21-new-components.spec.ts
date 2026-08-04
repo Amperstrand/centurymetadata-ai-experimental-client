@@ -49,7 +49,7 @@ test.describe('CenturyMetadata — new component tests', () => {
     await expect(budget).toBeVisible();
     const text = await budget.innerText();
     expect(text).toMatch(/\d+/);
-    expect(text).toContain('6487');
+    expect(text).toContain('14663');
   });
 
   test('CM-94: slot packing — add record updates budget', async ({ page }) => {

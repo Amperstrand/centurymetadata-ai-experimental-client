@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { gzipSync } from 'fflate';
+  import { zlibSync } from 'fflate';
 
   interface PackRecord {
     type: string;
@@ -25,7 +25,7 @@
     },
   ]);
 
-  const DATA_LENGTH = 6487;
+  const DATA_LENGTH = 14663;
 
   let rawBytes = $derived.by(() => {
     const encoder = new TextEncoder();
@@ -47,10 +47,8 @@
     const raw = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
     let off = 0;
     for (const p of parts) { raw.set(p, off); off += p.length; }
-    const gz = gzipSync(raw, { level: 9 });
-    gz[4] = 0; gz[5] = 0; gz[6] = 0; gz[7] = 0;
-    if (gz.length > 9) gz[9] = 0xff;
-    return gz.length;
+    const z = zlibSync(raw, { level: 9 });
+    return z.length;
   });
 
   let fillPercent = $derived(Math.min(100, (compressedBytes / DATA_LENGTH) * 100));
@@ -75,11 +73,11 @@
 
 <div class="space-y-4">
   <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 space-y-3">
-    <h3 class="text-sm font-semibold text-[#e6edf3]">Packing multiple records into one 8192-byte slot</h3>
+    <h3 class="text-sm font-semibold text-[#e6edf3]">Packing multiple records into one 16384-byte slot</h3>
     <p class="text-[11px] text-[#b1bac4] leading-relaxed">
-      One centurymetadata slot holds <strong class="text-[#e6edf3]">6487 bytes</strong> of AES-encrypted data.
+      One centurymetadata slot holds <strong class="text-[#e6edf3]">14663 bytes</strong> of AES-encrypted data.
       But before encryption, multiple <code class="text-[#a371f7]">TYPE\0NAME\0CONTENTS\0</code> triples are concatenated
-      and gzip-compressed together. This means a real wallet can store its descriptor + labels + pending PSBT all in one
+      and zlib-compressed together. This means a real wallet can store its descriptor + labels + pending PSBT all in one
       encrypted slot.
     </p>
   </div>
@@ -114,11 +112,11 @@
     <div class="grid grid-cols-3 gap-3 text-center">
       <div>
         <div class="text-lg font-bold text-[#58a6ff]">{rawBytes}</div>
-        <div class="text-[9px] text-[#484f58]">raw bytes (before gzip)</div>
+        <div class="text-[9px] text-[#484f58]">raw bytes (before zlib)</div>
       </div>
       <div>
         <div class="text-lg font-bold {overflow ? 'text-[#f85149]' : 'text-[#3fb950]'}">{compressedBytes}</div>
-        <div class="text-[9px] text-[#484f58]">gzip-compressed bytes</div>
+        <div class="text-[9px] text-[#484f58]">zlib-compressed bytes</div>
       </div>
       <div>
         <div class="text-lg font-bold text-[#484f58]">{DATA_LENGTH - compressedBytes}</div>
@@ -154,9 +152,9 @@
     <p class="text-[10px] text-[#8b949e] leading-relaxed">
       <strong class="text-[#e6edf3]">💡 How packing works:</strong>
       Each record is serialized as <code class="text-[#a371f7]">TYPE\0NAME\0CONTENTS\0</code> (UTF-8, NUL-separated).
-      All triples are concatenated, then gzip-compressed (level 9, mtime=0, OS=0xff for reproducibility).
-      The compressed data is zero-padded to exactly {DATA_LENGTH} bytes, then AES-256-CTR encrypted.
-      The gzip compression ratio means even a large descriptor + labels + PSBT typically fits in well under 6KB.
+      All triples are concatenated, then zlib-compressed (RFC 1950, level 9, no preset dictionary).
+      The compressed data is zero-padded to exactly {DATA_LENGTH} bytes, then AES-256-GCM encrypted.
+      The zlib compression ratio means even a large descriptor + labels + PSBT typically fits in well under 14KB.
     </p>
   </div>
 </div>
