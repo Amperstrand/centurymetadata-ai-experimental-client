@@ -30,12 +30,12 @@ export function deriveCmKeys(mnemonic: string, n: number = 0, passphrase: string
 
   const purpose = hdRoot.deriveChild((0x80000000 + CM_PURPOSE) >>> 0);
   const coin = purpose.deriveChild((0x80000000 + n) >>> 0);
-  // CM: WRITER_PUBKEY: BIP-32 0x44315441\'/N\'/0\'
+  // CM: WRITER_PUBKEY: BIP-32 0x44315441'/N'/0'
   const writerChild = coin.deriveChild((0x80000000 + 0) >>> 0);
-  // CM: READER_SECP_PRIVKEY: BIP-32 0x44315441\'/N\'/1\'
+  // CM: READER_SECP_PRIVKEY: BIP-32 0x44315441'/N'/1'
   const readerSecpChild = coin.deriveChild((0x80000000 + 1) >>> 0);
   const writerMlkemChild = coin.deriveChild((0x80000000 + 2) >>> 0);
-  // CM: READER_MLKEM_SEED_D: BIP-32 0x44315441\'/N\'/3\'
+  // CM: READER_MLKEM_SEED_D: BIP-32 0x44315441'/N'/3'
   const readerMlkemChild = coin.deriveChild((0x80000000 + 3) >>> 0);
 
   const writerPrivKey = new Uint8Array(writerChild.privateKey!);

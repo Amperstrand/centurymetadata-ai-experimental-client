@@ -227,7 +227,7 @@
   <div class="bg-[#1c2128] border border-[#30363d] rounded-lg p-4">
     <p class="text-[10px] text-[#8b949e] leading-relaxed">
       <strong class="text-[#e6edf3]">💡 Byte-level detail:</strong>
-      Each record is stored as <code class="text-[#a371f7]">TYPE\0NAME\0CONTENTS\0</code> inside the gzip-compressed AES
+      Each record is stored as <code class="text-[#a371f7]">TYPE\0NAME\0CONTENTS\0</code> inside the zlib-compressed AES
       payload. The server (in test mode) decrypts known-reader records and validates CONTENTS against the TYPE spec using
       the <code class="text-[#d29922]">embit</code> Python library. In production mode, the server can't decrypt — it
       stores opaque encrypted bytes.

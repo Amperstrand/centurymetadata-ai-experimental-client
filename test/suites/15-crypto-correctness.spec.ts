@@ -67,9 +67,9 @@ test.describe('CenturyMetadata — crypto correctness', () => {
       { id: 'sig', expect: 'Schnorr' },
       { id: 'writer', expect: 'compressed secp256k1' },
       { id: 'reader', expect: 'reader_secp_pubkey' },
-      { id: 'gen', expect: 'big-endian' },
+      { id: 'gen', expect: 'little-endian' },
       { id: 'mlkem', expect: 'ML-KEM-1024' },
-      { id: 'aes', expect: 'AES-256-CTR' },
+      { id: 'aes', expect: 'AES-256-GCM' },
     ];
     for (const c of cases) {
       await page.getByTestId(`cm-field-list-${c.id}`).click();
@@ -126,15 +126,18 @@ test.describe('CenturyMetadata — crypto correctness', () => {
     await expect(page.locator('#cm-section-decryption').getByText(/VALID/)).toBeVisible();
   });
 
-  test('CM-49: tamper demo reports INVALID signature, content still readable', async ({ page }) => {
+  test('CM-49: tamper demo reports INVALID signature, decoding stops (MUST fail parsing)', async ({ page }) => {
     await toSection(page, 'security');
     await page.getByTestId('cm-tamper-run').click();
     await expect(page.getByTestId('cm-tamper-sig-status')).toBeVisible({ timeout: 15000 });
     const sig = await page.getByTestId('cm-tamper-sig-status').innerText();
     expect(sig).toContain('INVALID');
     const decrypt = await page.getByTestId('cm-tamper-decrypt-status').innerText();
-    // The signature was tampered, not the content, so content still decodes
-    expect(decrypt.toLowerCase()).toContain('untampered');
+    // Per spec, a bad signature is fatal: parsing stops before any decryption
+    // is attempted, and zero records are recovered (AES-256-GCM replaced the
+    // old unauthenticated AES-CTR pipeline, which used to decrypt regardless).
+    expect(decrypt.toLowerCase()).toContain('parsing stopped');
+    expect(decrypt).toContain('0 records');
   });
 
   test('CM-50: wrong-reader demo reports a MISMATCH and explains why', async ({ page }) => {
@@ -149,14 +152,15 @@ test.describe('CenturyMetadata — crypto correctness', () => {
     expect(hexMatches?.length).toBeGreaterThanOrEqual(2);
   });
 
-  test('CM-51: gotcha — gunzip returns 0 bytes (bug), inflate returns the original', async ({ page }) => {
+  test('CM-51: gotcha — zlib inflate ignores zero padding, and distinguishes truncated from invalid', async ({ page }) => {
     await toSection(page, 'gotchas');
     await page.getByTestId('cm-gotcha-run').click();
     await expect(page.getByTestId('cm-gotcha-result')).toBeVisible({ timeout: 10000 });
     const txt = await page.getByTestId('cm-gotcha-result').innerText();
-    expect(txt).toContain('0 bytes'); // the bug
-    expect(txt).toMatch(/\d{2,} bytes/); // the fix
+    expect(txt).toMatch(/\d{2,} bytes/); // padded buffer still inflates to the real (non-zero) length
     expect(txt).toContain('bitcoin'); // recovered TYPE from triple demo data
+    expect(txt).toContain('unexpected EOF'); // genuinely truncated stream throws distinctly
+    expect(txt).toContain('TRUNCATED_ZLIB');
   });
 
   test('CM-52: Nostr bridge — npub renders and signed note verifies', async ({ page }) => {
