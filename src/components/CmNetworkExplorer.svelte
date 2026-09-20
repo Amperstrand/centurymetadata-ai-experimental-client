@@ -47,7 +47,7 @@
     {#if loading && !loaded}
       <div class="flex items-center gap-3 py-3">
         <div class="w-4 h-4 rounded-full border-2 border-[#21262d] border-t-[#58a6ff] animate-spin"></div>
-        <span class="text-xs text-[#8b949e]">Fetching 8 MB bundle from test API…</span>
+        <span class="text-xs text-[#8b949e]">Fetching 16 MB bundle from test API…</span>
       </div>
     {:else if stats}
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
@@ -111,7 +111,7 @@
   <div class="bg-[#1c2128] border border-[#30363d] rounded-lg p-4">
     <p class="text-[10px] text-[#8b949e] leading-relaxed">
       <strong class="text-[#e6edf3]">💡 What you're seeing:</strong>
-      The test API serves a single 8 MB bundle containing 1024 × 8192-byte slots. Most slots are empty (zeroed).
+      The test API serves a single 16 MB bundle containing 1024 × 16384-byte slots. Most slots are empty (zeroed).
       Each occupied slot has cleartext fields (writer pubkey, reader_id, generation) and encrypted fields
       (ML-KEM ciphertext + AES payload). Anyone can read the cleartext fields and verify the BIP-340 signature —
       but only the reader with the matching private keys can decrypt the content.

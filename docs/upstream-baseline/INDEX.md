@@ -7,7 +7,11 @@ detect when the upstream spec changes.
 
 **Source**: <https://github.com/rustyrussell/centurymetadata/tree/master>
 
-**Snapshotted at**: master HEAD `7946c80` (2026-07-14) on 2026-07-22.
+**Snapshotted at**: local capture on 2026-08-03, ahead of the `guilt/adapt-to-new-spec`
+branch landing on upstream `master` (AES-256-GCM replaces CTR, zlib replaces
+gzip, `DATA_LENGTH` 8192 → 16384 -- see `../SPEC-DRIFT.md`). **TODO**: once
+that branch merges, replace this line with the real merge-commit SHA and date
+(`git -C <upstream checkout> log -1 --format='%H %cd' --date=short master`).
 
 ## Files
 
@@ -15,7 +19,7 @@ detect when the upstream spec changes.
 |---|---|---|
 | `vars` | [`vars`](https://raw.githubusercontent.com/rustyrussell/centurymetadata/master/vars) | Spec source-of-truth (bash template that generates README.md). The PREAMBLE wire format, BIP-32 paths, and the 5 accepted TYPE strings are all defined here. |
 | `README.md` | [`README.md`](https://raw.githubusercontent.com/rustyrussell/centurymetadata/master/README.md) | Generated from `vars`. Tracked for human review; `vars` is the actual source-of-truth. |
-| `constants.py` | [`python/centurymetadata/constants.py`](https://raw.githubusercontent.com/rustyrussell/centurymetadata/master/python/centurymetadata/constants.py) | Canonical PREAMBLE bytes + `FULL_LENGTH`/`MLKEM_CT_LENGTH`/`DATA_LENGTH` constants + `bip340tag`. Our `src/lib/centurymetadata.ts:181-198` mirrors this byte-exact. |
+| `constants.py` | [`python/centurymetadata/constants.py`](https://raw.githubusercontent.com/rustyrussell/centurymetadata/master/python/centurymetadata/constants.py) | Canonical PREAMBLE bytes + `DATA_LENGTH`/`MLKEM_CT_LENGTH`/`PLAINTEXT_LENGTH`/`AES_LENGTH` constants + `bip340tag`. Our `src/lib/cm/constants.ts` mirrors this byte-exact. |
 | `encode.py` | [`python/centurymetadata/encode.py`](https://raw.githubusercontent.com/rustyrussell/centurymetadata/master/python/centurymetadata/encode.py) | Encoding pipeline (compress, ECDH, ML-KEM, AES, sign). Our `encodeRecord` mirrors `encode()`. |
 | `decode.py` | [`python/centurymetadata/decode.py`](https://raw.githubusercontent.com/rustyrussell/centurymetadata/master/python/centurymetadata/decode.py) | Decoding pipeline (split_parts, check_sig, unaes, decompress). Our `decodeSlot` + `checkSignature` mirror this. |
 | `validate.py` | [`python/centurymetadata/validate.py`](https://raw.githubusercontent.com/rustyrussell/centurymetadata/master/python/centurymetadata/validate.py) | The 5 accepted Bitcoin record types and their per-type CONTENTS validators. Our `ACCEPTED_TYPES` array mirrors `ACCEPTED_TYPES` here. |

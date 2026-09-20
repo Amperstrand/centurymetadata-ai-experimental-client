@@ -212,13 +212,13 @@
               </div>
               <div class="text-center text-[#484f58] text-lg">↓</div>
               <div class="bg-[#0d1117] border border-[#f78166]/30 rounded-lg p-3 text-center">
-                <div class="text-xs font-bold text-[#f78166]">🔐 Encrypted Record (8192 bytes)</div>
-                <div class="text-[10px] text-[#8b949e] mt-1">ECDH + ML-KEM-1024 → AES-256-CTR · Signed with BIP-340 Schnorr</div>
+                <div class="text-xs font-bold text-[#f78166]">🔐 Encrypted Record (16384 bytes)</div>
+                <div class="text-[10px] text-[#8b949e] mt-1">ECDH + ML-KEM-1024 → AES-256-GCM · Signed with BIP-340 Schnorr</div>
               </div>
               <div class="text-center text-[#484f58] text-lg">↓</div>
               <div class="bg-[#0d1117] border border-[#d29922]/30 rounded-lg p-3 text-center">
-                <div class="text-xs font-bold text-[#d29922]">🌐 XOR-Masked Bundle (8 MB)</div>
-                <div class="text-[10px] text-[#8b949e] mt-1">1024 slots × 8 KB · Privacy in numbers</div>
+                <div class="text-xs font-bold text-[#d29922]">🌐 XOR-Masked Bundle (16 MB)</div>
+                <div class="text-[10px] text-[#8b949e] mt-1">1024 slots × 16 KB · Privacy in numbers</div>
               </div>
             </div>
           </div>
@@ -236,7 +236,7 @@
               <div class="text-2xl mb-2">🕵️</div>
               <h3 class="text-sm font-semibold text-[#e6edf3] mb-1">Privacy in Numbers</h3>
               <p class="text-[10px] text-[#8b949e] leading-relaxed">
-                Everyone downloads the same 8 MB bundle. Only you can find and decrypt your records.
+                Everyone downloads the same 16 MB bundle. Only you can find and decrypt your records.
               </p>
             </div>
             <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4">
@@ -409,7 +409,7 @@ BIP-39 Seed
             <h2 class="text-xl font-bold text-[#e6edf3]">Record Anatomy</h2>
           </div>
           <p class="text-sm text-[#b1bac4] leading-relaxed">
-            Every record in centurymetadata is exactly <strong class="text-[#e6edf3]">8192 bytes</strong>.
+            Every record in centurymetadata is exactly <strong class="text-[#e6edf3]">16384 bytes</strong>.
             Some fields are visible to everyone (cleartext); others are encrypted.
             Click each field below to learn what it does.
           </p>
@@ -450,8 +450,8 @@ BIP-39 Seed
             <h2 class="text-xl font-bold text-[#e6edf3]">Slot Packing</h2>
           </div>
           <p class="text-sm text-[#b1bac4] leading-relaxed">
-            How much Bitcoin data fits in one 8192-byte slot? Add and remove records, and watch the gzip-compressed
-            size fill the 6487-byte budget in real-time.
+            How much Bitcoin data fits in one 16384-byte slot? Add and remove records, and watch the zlib-compressed
+            size fill the 14663-byte budget in real-time.
           </p>
           {#await import('./CmSlotPacking.svelte')}
             <div class="flex items-center gap-3 py-8 justify-center"><div class="w-5 h-5 rounded-full border-2 border-[#21262d] border-t-[#58a6ff] animate-spin"></div><span class="text-xs text-[#8b949e]">Loading...</span></div>
@@ -573,7 +573,9 @@ BIP-39 Seed
             <h2 class="text-xl font-bold text-[#e6edf3]">Browser Crypto Gotchas</h2>
           </div>
           <p class="text-sm text-[#b1bac4] leading-relaxed">
-            Porting centurymetadata from Node to the browser hit real, subtle bugs. Here's the gunzip-on-padded-data bug reproduced live, plus the API translations that made the port work.
+            Porting centurymetadata from Node to the browser hit real, subtle bugs. Here's the zlib-vs-padding error-code
+            handling reproduced live (plus the gzip-era gunzipSync bug it replaced), and the API translations that made
+            the port work.
           </p>
           {#await import('./BrowserGotchas.svelte')}
             <div class="flex items-center gap-3 py-8 justify-center"><div class="w-5 h-5 rounded-full border-2 border-[#21262d] border-t-[#58a6ff] animate-spin"></div><span class="text-xs text-[#8b949e]">Loading...</span></div>
@@ -606,7 +608,7 @@ BIP-39 Seed
           </div>
           <p class="text-sm text-[#b1bac4] leading-relaxed">
             Records aren't stored individually. Instead, <strong class="text-[#e6edf3]">1024 slots are XOR-masked</strong>
-            into a single 8 MB bundle. Everyone downloads the same bundle; only your reader_id lets you find
+            into a single 16 MB bundle. Everyone downloads the same bundle; only your reader_id lets you find
             and decrypt your records within it. This provides <strong class="text-[#e6edf3]">privacy in numbers</strong> —
             the server can't tell which records are yours.
           </p>

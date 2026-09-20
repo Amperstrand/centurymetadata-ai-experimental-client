@@ -48,7 +48,7 @@
       color: '#3fb950',
       encrypted: false,
       desc: 'Generation Number',
-      detail: '8-byte big-endian integer. Writers can update records — higher generations supersede lower ones. Only the latest generation is served in the bundle.',
+      detail: '8-byte little-endian integer. Writers can update records — higher generations supersede lower ones. Only the latest generation is served in the bundle. GEN is also folded into the AES key, so a key from one generation can never decrypt (or replay onto) another.',
     },
     {
       id: 'mlkem',
@@ -62,15 +62,15 @@
     {
       id: 'aes',
       name: 'AES',
-      size: 6487,
+      size: 14679,
       color: '#21262d',
       encrypted: true,
-      desc: 'AES-256-CTR Encrypted Payload',
-      detail: 'The actual record content (TYPE\\0NAME\\0CONTENTS\\0 triples), gzip-compressed, zero-padded to 6487 bytes, then encrypted with AES-256-CTR using SHA256(ECDH_secret ∥ ML-KEM_secret) as the key.',
+      desc: 'AES-256-GCM Encrypted Payload',
+      detail: 'The actual record content (TYPE\\0NAME\\0CONTENTS\\0 triples), zlib-compressed, zero-padded to 14663 bytes, then encrypted with AES-256-GCM (12-byte all-zero nonce) using SHA256(ECDH_secret ∥ ML-KEM_secret ∥ GEN) as the key. The trailing 16-byte authentication tag (14663 + 16 = 14679) means any tampering is detected before a single byte is decrypted.',
     },
   ];
 
-  const TOTAL = 8192;
+  const TOTAL = 16384;
 
   function pct(size: number) {
     return (size / TOTAL) * 100;
@@ -136,7 +136,7 @@
   <!-- Proportional bar visualization -->
   <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4">
     <div class="flex items-center justify-between mb-3">
-      <h3 class="text-sm font-semibold text-[#e6edf3]">8192-byte Slot Layout</h3>
+      <h3 class="text-sm font-semibold text-[#e6edf3]">16384-byte Slot Layout</h3>
       <span class="text-[10px] text-[#484f58]">click a field to explore</span>
     </div>
     <div class="flex h-12 rounded-md overflow-hidden border border-[#21262d]">
@@ -156,7 +156,7 @@
     </div>
     <div class="flex justify-between mt-1 text-[10px] text-[#484f58] font-mono">
       <span>byte 0</span>
-      <span>byte 8192</span>
+      <span>byte 16384</span>
     </div>
   </div>
 
@@ -221,7 +221,7 @@
           <span class="text-[#484f58] select-none">{line.ascii}</span>
         </div>
       {/each}
-      <div class="text-[#484f58] mt-2">····· 8007 more bytes (ML-KEM ciphertext continuation + AES-encrypted payload)</div>
+      <div class="text-[#484f58] mt-2">····· 16192 more bytes (ML-KEM ciphertext continuation + AES-encrypted payload)</div>
     </div>
   </div>
 
@@ -242,7 +242,7 @@
     <p class="text-xs text-[#8b949e] leading-relaxed">
       <strong class="text-[#e6edf3]">💡 Notice:</strong>
       Only <strong class="text-[#3fb950]">137 bytes</strong> are cleartext (SIG + WRITER + READER + GEN).
-      The remaining <strong class="text-[#d29922]">8055 bytes</strong> (98.3%) are encrypted.
+      The remaining <strong class="text-[#d29922]">16247 bytes</strong> (99.2%) are encrypted.
       Anyone scanning the bundle can see <em>who</em> wrote a record, <em>who</em> it's for, and <em>what generation</em> it is —
       but the actual content is cryptographically opaque.
     </p>
@@ -258,7 +258,7 @@
       Every centurymetadata record begins with a human-readable <strong class="text-[#e6edf3]">preamble</strong> — a
       text header that describes the entire format. A future developer who finds this record in 100 years can understand
       how to decode it <em>just from the preamble itself</em>. No external documentation needed. The server strips the
-      preamble before storing the 8192-byte slot, but it validates the record matches this specification on upload.
+      preamble before storing the 16384-byte slot, but it validates the record matches this specification on upload.
     </p>
     <details>
       <summary class="text-[10px] text-[#58a6ff] cursor-pointer hover:underline">Show full preamble text ({preambleLength()} bytes)</summary>
@@ -270,7 +270,7 @@
         <div class="text-[9px] text-[#484f58]">preamble bytes (uploaded, not stored)</div>
       </div>
       <div class="bg-[#0d1117] rounded-md p-2">
-        <div class="text-sm font-bold text-[#58a6ff]">8192</div>
+        <div class="text-sm font-bold text-[#58a6ff]">16384</div>
         <div class="text-[9px] text-[#484f58]">slot bytes (stored in bundle)</div>
       </div>
     </div>

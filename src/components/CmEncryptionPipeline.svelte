@@ -45,49 +45,48 @@
   let readerSecpPubHex = $derived(toHex(keys.readerSecpPubKey));
 
   const stepMeta = [
-    { lib: 'fflate + TextEncoder', func: 'gzipSync(data, {level:9}) + pad to 6487',
-      code: `// src/lib/centurymetadata.ts → encodeRecord()
+    { lib: 'fflate + TextEncoder', func: 'zlibSync(data, {level:9}) + pad to 14663',
+      code: `// src/lib/cm/encode.ts → encodeRecord()
 const encoder = new TextEncoder();
 const parts = [];
 for (const [type, name, contents] of triples) {
   parts.push(encoder.encode(type), [0], encoder.encode(name), [0], encoder.encode(contents), [0]);
 }
 const rawData = concatBytes(...parts);
-const compressed = gzipSync(rawData, { level: 9 });
-compressed[4]=0; compressed[5]=0; compressed[6]=0; compressed[7]=0;
-if (compressed.length > 9) compressed[9] = 0xff;
-const padded = new Uint8Array(6487);
+const compressed = zlibSync(rawData, { level: 9 }); // RFC 1950, no FDICT
+const padded = new Uint8Array(14663);
 padded.set(compressed);` },
-    { lib: '@noble/curves', func: 'secp256k1 ECDH → sha256(x)',
-      code: `// src/lib/centurymetadata.ts → computeEcdh()
-const sharedPoint = secp256k1.Point
-  .fromBytes(readerSecpPubKey)
-  .multiply(bytesToNumberBE(writerPrivKey));
-const x = sharedPoint.toBytes(true).subarray(1, 33);
-return sha256(x);
+    { lib: '@noble/curves', func: 'secp256k1 ECDH → sha256(compressed point)',
+      code: `// src/lib/cm/crypto.ts → computeEcdh()
+const sharedPoint = secp256k1.getSharedSecret(
+  writerPrivKey, readerSecpPubKey, true /* compressed */
+);
+return sha256(sharedPoint); // full 33-byte compressed point, prefix included
 // → 32-byte classical shared secret` },
     { lib: '@noble/post-quantum', func: 'ml_kem1024.encapsulate(pubkey)',
       code: `// @noble/post-quantum — FIPS 203 ML-KEM-1024
 const encap = ml_kem1024.encapsulate(keys.mlkemPublicKey);
 const mlkemCt = new Uint8Array(encap.cipherText);    // 1568 bytes → goes in slot
 const mlkemSecret = new Uint8Array(encap.sharedSecret); // 32 bytes → AES key input` },
-    { lib: '@noble/hashes', func: 'sha256(ecdh ∥ mlkem)',
-      code: `// Hybrid key derivation — both secrets required
-const aesKey = sha256(concatBytes(ecdhSecret, mlkemSecret));
+    { lib: '@noble/hashes', func: 'sha256(ecdh ∥ mlkem ∥ gen)',
+      code: `// Hybrid key derivation — both secrets AND the generation number required
+const genBytes = int64ToBytesLE(generation); // little-endian per spec
+const aesKey = sha256(concatBytes(ecdhSecret, mlkemSecret, genBytes));
 // → 32-byte AES-256 key
 // Breaking ECDH alone is useless. Breaking ML-KEM alone is useless.
-// Attacker must break BOTH to recover this key.` },
-    { lib: 'Web Crypto API', func: 'crypto.subtle.encrypt(AES-CTR)',
-      code: `// Browser-native AES-256-CTR via Web Crypto
+// Attacker must break BOTH to recover this key -- and a key from one
+// generation can never decrypt (or be replayed as) another.` },
+    { lib: 'Web Crypto API', func: 'crypto.subtle.encrypt(AES-GCM)',
+      code: `// Browser-native AES-256-GCM via Web Crypto
 const cryptoKey = await crypto.subtle.importKey(
-  'raw', aesKey, { name: 'AES-CTR' }, false, ['encrypt']
+  'raw', aesKey, { name: 'AES-GCM' }, false, ['encrypt']
 );
 const encrypted = await crypto.subtle.encrypt(
-  { name: 'AES-CTR', counter: new Uint8Array(16), length: 128 },
+  { name: 'AES-GCM', iv: new Uint8Array(12), tagLength: 128 },
   cryptoKey, padded
 );
-// counter starts at 0, nonce is all-zeros
-// → 6487 bytes of AES ciphertext → goes in slot` },
+// nonce is all-zeros; Web Crypto appends the 16-byte auth tag automatically
+// → 14679 bytes (14663 ciphertext + 16-byte tag) → goes in slot` },
     { lib: '@noble/curves', func: 'schnorr.sign(taggedHash, priv)',
       code: `// BIP-340 Schnorr signature over the record content
 const contentBytes = concatBytes(
@@ -147,8 +146,8 @@ const sig = schnorr.sign(prehash, writerPrivKey);
         <div>title = "{title}"</div>
         <div>content = "{content}"</div>
         <div class="text-[#a371f7]">data = TYPE\0NAME\0CONTENTS\0 → {title.length + content.length + 8} bytes</div>
-        <div class="text-[#3fb950]">gzip(data) → {debug ? `${debug.compressedLen} bytes` : '...'}</div>
-        <div class="text-[#58a6ff]">pad to 6487 bytes (zero-fill)</div>
+        <div class="text-[#3fb950]">zlib(data) → {debug ? `${debug.compressedLen} bytes` : '...'}</div>
+        <div class="text-[#58a6ff]">pad to 14663 bytes (zero-fill)</div>
       </div>
       {#if showCode.has(1)}<pre class="text-[9px] font-mono text-[#3fb950] bg-[#0d1117] rounded-md p-2 mt-2 overflow-x-auto whitespace-pre-wrap border border-[#21262d]">{stepMeta[0].code}</pre>{/if}
     </div>
@@ -166,7 +165,7 @@ const sig = schnorr.sign(prehash, writerPrivKey);
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">writer_priv × reader_secp_pub → shared_point</div>
         <div class="font-mono">writer_pubkey: <span class="text-[#58a6ff]">{writerPubHex.slice(0, 16)}...</span></div>
         <div class="font-mono">reader_secp_pub: <span class="text-[#58a6ff]">{readerSecpPubHex.slice(0, 16)}...</span></div>
-        <div class="font-mono text-[#d29922]">SHA256(x_coordinate(shared_point)) =</div>
+        <div class="font-mono text-[#d29922]">SHA256(33-byte compressed shared_point) =</div>
         {#if debug}
           <div class="font-mono text-[#d29922] bg-[#0d1117] rounded px-2 py-1 break-all">{debug.ecdhSecret}</div>
         {:else}
@@ -207,9 +206,9 @@ const sig = schnorr.sign(prehash, writerPrivKey);
         <button onclick={() => toggleCode(4)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(4) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
-        <p>Combine both secrets into one AES key:</p>
-        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">SHA256(ECDH_secret ∥ ML-KEM_secret)</div>
-        <p class="text-[#e6edf3] mt-1">This is the <strong>hybrid</strong> part — breaking either ECDH or ML-KEM alone is NOT enough. The attacker needs both.</p>
+        <p>Combine both secrets and the generation number into one AES key:</p>
+        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">SHA256(ECDH_secret ∥ ML-KEM_secret ∥ GEN)</div>
+        <p class="text-[#e6edf3] mt-1">This is the <strong>hybrid</strong> part — breaking either ECDH or ML-KEM alone is NOT enough. The attacker needs both. Folding in <code>GEN</code> also means a key from one generation can never decrypt another.</p>
         {#if debug}
           <div class="font-mono text-[#3fb950] bg-[#0d1117] rounded px-2 py-1 break-all">AES key = {debug.aesKey}</div>
         {:else}
@@ -223,14 +222,14 @@ const sig = schnorr.sign(prehash, writerPrivKey);
     <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 {step >= 5 ? '' : 'opacity-40'} transition-opacity">
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 5 ? '✅' : '⏳'}</span>
-        <h4 class="text-sm font-semibold text-[#e6edf3]">Step 5: AES-256-CTR Encrypt</h4>
+        <h4 class="text-sm font-semibold text-[#e6edf3]">Step 5: AES-256-GCM Encrypt</h4>
         <span class="text-[9px] text-[#d29922] bg-[#d29922]/20 px-1.5 py-0.5 rounded-full">{stepMeta[4].lib}</span>
         <button onclick={() => toggleCode(5)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(5) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
-        <p>Encrypt the gzip'd, padded data:</p>
-        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">AES-256-CTR(key, padded_data) → ciphertext</div>
-        <div class="font-mono text-[#d29922]">→ {debug ? `${debug.encryptedLen} bytes` : '6487 bytes'} (goes in the AES field of the slot)</div>
+        <p>Encrypt the zlib'd, padded data (authenticated, not just confidential):</p>
+        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">AES-256-GCM(key, padded_data) → ciphertext ∥ 16-byte tag</div>
+        <div class="font-mono text-[#d29922]">→ {debug ? `${debug.encryptedLen} bytes` : '14679 bytes'} (goes in the AES field of the slot)</div>
       </div>
       {#if showCode.has(5)}<pre class="text-[9px] font-mono text-[#3fb950] bg-[#0d1117] rounded-md p-2 mt-2 overflow-x-auto whitespace-pre-wrap border border-[#21262d]">{stepMeta[4].code}</pre>{/if}
     </div>
@@ -260,9 +259,10 @@ const sig = schnorr.sign(prehash, writerPrivKey);
     <div class="bg-[#1c2128] border border-[#30363d] rounded-lg p-4" data-testid="cm-enc-done">
       <p class="text-xs text-[#8b949e] leading-relaxed">
         <strong class="text-[#3fb950]">✅ Record encrypted!</strong>
-        The 8192-byte slot is ready. SIG + WRITER + READER + GEN are cleartext (137 bytes).
-        MLKEM_CT + AES are encrypted (8055 bytes). An attacker needs to break <strong class="text-[#e6edf3]">both</strong>
-        ECDH and ML-KEM-1024 to recover the AES key and decrypt your data.
+        The 16384-byte slot is ready. SIG + WRITER + READER + GEN are cleartext (137 bytes).
+        MLKEM_CT + AES are encrypted (16247 bytes). An attacker needs to break <strong class="text-[#e6edf3]">both</strong>
+        ECDH and ML-KEM-1024 to recover the AES key and decrypt your data — and even then, the GCM tag means
+        they can't tamper with a single byte without detection.
       </p>
     </div>
   {/if}

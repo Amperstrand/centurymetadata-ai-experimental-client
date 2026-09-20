@@ -40,13 +40,13 @@ test.describe('CenturyMetadata — deeper content', () => {
     await shot(page, '12-cm-bridge');
   });
 
-  test('CM-12: browser-crypto gotcha — gunzip bug reproduces (0 vs >0 bytes)', async ({ page }) => {
+  test('CM-12: browser-crypto gotcha — zlib inflate survives zero padding', async ({ page }) => {
     await toSection(page, 'gotchas');
     await page.getByTestId('cm-gotcha-run').click();
     await expect(page.getByTestId('cm-gotcha-result')).toBeVisible({ timeout: 10000 });
     const txt = await page.getByTestId('cm-gotcha-result').innerText();
-    expect(txt).toContain('0 bytes');      // the bug: gunzipSync returns empty
-    expect(txt).toMatch(/\d{2,} bytes/);   // the fix: inflateSync recovers the data
+    expect(txt).toMatch(/\d{2,} bytes/);   // inflateSync recovers the real (non-zero) length
+    expect(txt).toContain('unexpected EOF'); // a genuinely truncated stream throws distinctly
     await shot(page, '12-cm-gotcha');
   });
 });

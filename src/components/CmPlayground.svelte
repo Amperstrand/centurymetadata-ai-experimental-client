@@ -156,8 +156,11 @@
           <div data-testid="cm-record-{i}" class="border border-[#21262d] rounded-md p-3 bg-[#0d1117] space-y-1">
             <div class="flex items-center gap-2 flex-wrap text-[10px] font-mono">
               <span class="text-[#a371f7]">gen {r.decoded.generation}</span>
-              <span class={r.decoded.sigValid ? 'text-[#3fb950]' : 'text-[#f85149]'}>
-                sig {r.decoded.sigValid ? '✓ valid' : '✗ invalid'}
+              <span class={r.decoded.fatal ? 'text-[#f85149]' : 'text-[#3fb950]'}>
+                {r.decoded.fatal ? `✗ ${r.decoded.errors[0]?.code ?? 'error'}` : '✓ decoded'}
+              </span>
+              <span class={r.decoded.toSelf ? 'text-[#3fb950]' : 'text-[#d29922]'}>
+                {r.decoded.toSelf ? '✍ to-self' : '📊 not to-self'}
               </span>
             </div>
             {#if r.decoded.triples.length}

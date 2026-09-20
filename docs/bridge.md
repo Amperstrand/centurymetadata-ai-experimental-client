@@ -31,56 +31,57 @@ Keys are cryptographically independent across the two systems despite sharing a 
 
 ## Record Format
 
-Each upload is 9243 bytes:
+Each upload is 17571 bytes:
 
 ```
-PREAMBLE[1051] | SIG[64] | WRITER_PUBKEY[33] | READER_ID[32] | GEN[8] | MLKEM_CT[1568] | AES[6487]
+PREAMBLE[1187] | SIG[64] | WRITER_PUBKEY[33] | READER_ID[32] | GEN[8] | MLKEM_CT[1568] | AES[14679]
 ```
 
 | Field | Size | Description |
 |---|---|---|
-| PREAMBLE | 1051 | Human-readable format spec (uploaded, not stored in bundle) |
+| PREAMBLE | 1187 | Human-readable format spec (uploaded, not stored in bundle) |
 | SIG | 64 | BIP-340 Schnorr signature over `taggedHash(TAG, content[64:])` |
 | WRITER_PUBKEY | 33 | Compressed secp256k1 public key of the writer |
 | READER_ID | 32 | `SHA256(reader_secp_pubkey || reader_mlkem_pubkey)` |
-| GEN | 8 | Generation number (big-endian int64, starts at 0) |
+| GEN | 8 | Generation number (little-endian uint64, starts at 0) |
 | MLKEM_CT | 1568 | ML-KEM-1024 ciphertext encapsulated to reader's ML-KEM key |
-| AES | 6487 | AES-256-CTR encrypted gzip payload, zero-padded |
+| AES | 14679 | AES-256-GCM encrypted zlib payload (14663 plaintext + 16-byte tag), zero-padded before encryption |
 
 ### Encryption pipeline
 
-Per upstream `python/centurymetadata/encode.py:101-113` (`encode()`):
+Per upstream `python/centurymetadata/encode.py` (`encode()`):
 
-1. **Data**: `TYPE\0NAME\0CONTENTS\0` triples → gzip (level 9, mtime=0, OS byte forced to 0xff) → zero-pad to 6487 bytes
-2. **ECDH**: `SHA256(x_coordinate(writer_priv × reader_secp_pub))` → 32-byte classical secret (upstream `encode.py:76-78 get_ecdh_secret`)
+1. **Data**: `TYPE\0NAME\0CONTENTS\0` triples → zlib (RFC 1950, level 9, no FDICT) → zero-pad to 14663 bytes
+2. **ECDH**: `SHA256(33-byte compressed point of writer_priv × reader_secp_pub)` → 32-byte classical secret (upstream `encode.py get_ecdh_secret`)
 3. **ML-KEM**: encapsulate to reader's ML-KEM pubkey → 32-byte post-quantum secret + 1568-byte ciphertext (FIPS 203)
-4. **AES key**: `SHA256(ECDH_secret || ML-KEM_secret)` → 32-byte key (upstream `encode.py:86-88 get_aeskey`)
-5. **Encrypt**: AES-256-CTR with 8-byte zero nonce + 8-byte zero counter (upstream `encode.py:32-38 aes`)
-6. **Sign**: BIP-340 Schnorr over `taggedHash("centurymetadata v1", WRITER_PUBKEY || READER_ID || GEN || MLKEM_CT || AES)` (upstream `encode.py:91-94 contents` + `:97-98 sign`)
+4. **AES key**: `SHA256(ECDH_secret || ML-KEM_secret || GEN)` → 32-byte key (upstream `encode.py get_aeskey`) -- folding GEN into the key means a ciphertext from one generation can never be replayed as another
+5. **Encrypt**: AES-256-GCM with a 12-byte all-zero nonce; 16-byte authentication tag appended (upstream `encode.py aes`)
+6. **Sign**: BIP-340 Schnorr over `taggedHash("centurymetadata v1", WRITER_PUBKEY || READER_ID || GEN || MLKEM_CT || AES)` (upstream `encode.py contents` + `sign`)
 
-An attacker must break **both** ECDH and ML-KEM to decrypt a record.
+An attacker must break **both** ECDH and ML-KEM to decrypt a record; the GCM tag additionally makes any tampering with the ciphertext (or the writer's identity) detectable before a single byte is decrypted.
 
 ### Decryption pipeline
 
-Per upstream `python/centurymetadata/decode.py:76-92` (`decode()`):
+Per upstream `python/centurymetadata/decode.py` (`decode()`):
 
 1. Fetch bundle via `POST /api/v1/fetchxor/{directory}` (128-byte bitmask selecting bundles in the directory)
-2. Scan the 1024 × 8192-byte slots in the returned bundle for matching `reader_id` at offset 97
-3. Verify BIP-340 signature (upstream `decode.py:52-60 check_sig`)
-4. ECDH: `SHA256(x_coordinate(reader_secp_priv × writer_pub))` (upstream `encode.py:76-78`)
+2. Scan the 1024 × 16384-byte slots in the returned bundle for matching `reader_id` at offset 97
+3. Verify BIP-340 signature (upstream `decode.py check_sig`) -- a bad signature is fatal, no decryption is attempted
+4. ECDH: `SHA256(33-byte compressed point of reader_secp_priv × writer_pub)` (upstream `encode.py get_ecdh_secret`, shared with encode)
 5. ML-KEM decapsulate: `ml_kem1024.decapsulate(MLKEM_CT, reader_mlkem_secret)` (FIPS 203)
-6. AES-256-CTR decrypt → strip gzip → parse `TYPE\0NAME\0CONTENTS\0` triples (upstream `decode.py:10-22 decompress`)
+6. AES-256-GCM decrypt (fails outright if the tag doesn't verify) → inflate the zlib stream (ignoring trailing zero padding) → parse `TYPE\0NAME\0CONTENTS\0` triples (upstream `decode.py decompress`)
 
 ## Architecture
 
 ```
 Browser (Svelte SPA)
-├── src/lib/centurymetadata.ts                   Encode/decode/gzip/crypto (Web Crypto + fflate + @noble)
+├── src/lib/centurymetadata.ts                   Barrel re-export of src/lib/cm/
+├── src/lib/cm/                                  Encode/decode/zlib/crypto (Web Crypto + fflate + @noble)
 ├── src/components/CenturyMetadata.svelte        14-section interactive explorer
 │      (overview, keys, record anatomy, record types, slot packing, encryption,
 │       decryption, security demos, why hybrid, browser crypto, node vs browser,
 │       bundle, XOR privacy, playground)
-├── src/components/CmRecordAnatomy.svelte         Section 3: clickable 8192-byte slot layout
+├── src/components/CmRecordAnatomy.svelte         Section 3: clickable 16384-byte slot layout
 ├── src/components/CmEncryptionPipeline.svelte    Section 6: animated 6-step encode visualizer
 ├── src/components/CmDecryptionPipeline.svelte    Section 7: animated 6-step decode visualizer (decodeSlot)
 ├── src/components/CmSecurityDemos.svelte         Section 8: tamper-detection + wrong-reader demos
@@ -101,7 +102,7 @@ The Worker proxy exists because testapi.centurymetadata.org is Apache with no CO
 |---|---|---|---|
 | GET | `/cm/api/v1/listbundles` | — | List bundle directories `[{"directory":"00-ff","index":0}]` |
 | POST | `/cm/api/v1/authorize/{readerId}/{writerPub}/{authtoken}` | empty | Authorize writer for reader_id |
-| POST | `/cm/api/v1/update` | 9243 bytes | Upload a record (preamble + slot) |
+| POST | `/cm/api/v1/update` | 17571 bytes | Upload a record (preamble + slot) |
 | POST | `/cm/api/v1/fetchxor/{directory}` | 128-byte bitmask | Fetch XOR'd bundle data |
 
 Authtoken is `"0" * 64` — the test API's open token, hard-coded in `python/centurymetadata/server/server.py:240-243` (`authorize()` rejects any other value with HTTP 403). The test API is not running in `TEST_MODE` today, so it does not enforce the known-keys scheme; see [`docs/SPEC-DRIFT.md`](SPEC-DRIFT.md) for the deployment-lag inventory.
@@ -119,24 +120,24 @@ These were the original motivations for the parent BlossomFlare project this cli
 
 | Node (test script) | Browser (this lib) | Why |
 |---|---|---|
-| `crypto.createCipheriv('aes-256-ctr', key, iv)` | `crypto.subtle.encrypt({name:'AES-CTR', counter, length:128}, ...)` | Web Crypto API |
-| `zlib.gzipSync(data, {level:9})` | `fflate.gzipSync(data, {level:9})` | Browser-compatible |
-| `zlib.gunzipSync(paddedData)` | `fflate.inflateSync(data.subarray(headerLen))` | `gunzipSync` returns empty on padded data; `inflateSync` stops at DEFLATE end-of-stream and ignores trailing zeros |
+| `crypto.createCipheriv('aes-256-gcm', key, nonce)` | `crypto.subtle.encrypt({name:'AES-GCM', iv, tagLength:128}, ...)` | Web Crypto API; both append/expect the 16-byte tag concatenated onto the ciphertext |
+| `zlib.deflateSync(data, {level:9})` | `fflate.zlibSync(data, {level:9})` | Browser-compatible; both produce RFC-1950 zlib, not gzip |
+| `zlib.inflateSync(paddedData)` | manual zlib-header check + `fflate.inflateSync(data.subarray(2))` | fflate's `unzlibSync` slices off the *last* 4 bytes assuming they're the Adler32 trailer, which breaks on zero-padded input; the raw-DEFLATE `inflateSync` stops at the DEFLATE end-of-stream marker on its own and ignores whatever padding follows, so we validate the 2-byte zlib header ourselves and hand it the body directly (see `crypto.ts` `zlibDecompress()`) |
 | `Buffer.concat([...])` | Manual `concatBytes(...)` | No Buffer in browser |
-| `Buffer.alloc(16, 0)` | `new Uint8Array(16)` | No Buffer in browser |
+| `Buffer.alloc(12, 0)` | `new Uint8Array(12)` | No Buffer in browser |
 
-### The gunzipSync bug
+### Why zlib instead of gzip
 
-fflate's `gunzipSync` returns an empty `Uint8Array` when given gzip data followed by trailing zero bytes (which centurymetadata uses to pad the AES payload to 6487 bytes). The fix: parse the gzip header (RFC 1952) manually and pass the raw DEFLATE stream to `inflateSync`, which stops at the end-of-stream marker and ignores trailing data.
+An earlier version of this client (and, at the time, upstream) used gzip (RFC 1952), which carries an OS byte and mtime field that needed forcing to fixed values for cross-platform reproducibility, plus fflate's `gunzipSync` returned an empty `Uint8Array` on gzip data followed by trailing zero padding (worked around by manually parsing the gzip header and feeding the raw DEFLATE stream to `inflateSync`). Upstream's SPECIFICATION.md rewrite switched to zlib (RFC 1950), which has no such metadata fields at all, so the whole class of bug is gone -- the only manual step left is validating the 2-byte zlib header before inflating (see above).
 
 ## Known Limitations
 
 - **Test API only**: all data goes to testapi.centurymetadata.org with authtoken `"0" * 64` — no production CM API exists yet (upstream)
-- **Single directory, single bundle**: the test API currently has one directory (`00-ff`) containing one bundle (also `00-ff`) holding 1024 slot positions — all users' records share the same 8 MB blob
-- **No generation increment in the UI**: the explorer always writes generation 0; a second write to the same (reader, writer) pair fails with HTTP 400 "Generation 0 already exists" (upstream `server.py:321-323`)
-- **Bundle scan is O(N)**: fetching reads the entire 8 MB response and scans every 8192-byte slot for a reader_id match
+- **Single directory, single bundle**: the test API currently has one directory (`00-ff`) containing one bundle (also `00-ff`) holding 1024 slot positions — all users' records share the same 16 MB blob
+- **No generation increment in the UI**: the explorer always writes generation 0; a second write to the same (reader, writer) pair fails with HTTP 400 "Generation 0 already exists" (upstream `server.py`)
+- **Bundle scan is O(N)**: fetching reads the entire 16 MB response and scans every 16384-byte slot for a reader_id match
 - **ML-KEM-1024 bundle size**: @noble/post-quantum adds ~9 KB to the frontend bundle
-- **Deployment lag**: as of 2026-07-22 the public test API serves the pre-2026-07-08 spec; see [`docs/SPEC-DRIFT.md`](SPEC-DRIFT.md)
+- **Deployment lag**: the public test API may lag the upstream SPECIFICATION.md at any given time; see [`docs/SPEC-DRIFT.md`](SPEC-DRIFT.md)
 
 ## References
 

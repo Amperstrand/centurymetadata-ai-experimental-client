@@ -48,13 +48,12 @@ const writerXOnly = writerPub.subarray(1, 33);
 const sigValid = schnorr.verify(sig, prehash, writerXOnly);
 // Anyone can do this — no private keys needed` },
     { lib: '@noble/curves', func: 'secp256k1 ECDH (reader side)',
-      code: `// src/lib/centurymetadata.ts → computeEcdh()
+      code: `// src/lib/cm/crypto.ts → computeEcdh()
 // Reader uses THEIR private key with the WRITER's public key
-const sharedPoint = secp256k1.Point
-  .fromBytes(slotWriterPub)
-  .multiply(bytesToNumberBE(keys.readerSecpPrivKey));
-const x = sharedPoint.toBytes(true).subarray(1, 33);
-return sha256(x);
+const sharedPoint = secp256k1.getSharedSecret(
+  keys.readerSecpPrivKey, slotWriterPub, true /* compressed */
+);
+return sha256(sharedPoint); // full 33-byte compressed point
 // → same secret as encryption step 2 (ECDH is symmetric)` },
     { lib: '@noble/post-quantum', func: 'ml_kem1024.decapsulate(ct, priv)',
       code: `// @noble/post-quantum — FIPS 203 ML-KEM-1024
@@ -64,31 +63,32 @@ const decodeMlkemSecret = ml_kem1024.decapsulate(
 );
 // → same 32-byte secret as encryption step 3
 // (decapsulation is deterministic given the private key)` },
-    { lib: '@noble/hashes', func: 'sha256(ecdh ∥ mlkem)',
-      code: `// Same hybrid derivation as encryption — both secrets required
+    { lib: '@noble/hashes', func: 'sha256(ecdh ∥ mlkem ∥ gen)',
+      code: `// Same hybrid derivation as encryption — both secrets AND GEN required
 const decodeAesKey = sha256(
-  concatBytes(decodeEcdhSecret, new Uint8Array(decodeMlkemSecret))
+  concatBytes(decodeEcdhSecret, new Uint8Array(decodeMlkemSecret), genBytes)
 );
 // → must match the AES key from encryption step 4
-// If either secret is wrong, this key is garbage → decryption fails` },
-    { lib: 'Web Crypto API', func: 'crypto.subtle.decrypt(AES-CTR)',
-      code: `// Browser-native AES-256-CTR decryption via Web Crypto
+// If either secret (or GEN) is wrong, this key is garbage → GCM tag fails` },
+    { lib: 'Web Crypto API', func: 'crypto.subtle.decrypt(AES-GCM)',
+      code: `// Browser-native AES-256-GCM decryption via Web Crypto
 const cryptoKey = await crypto.subtle.importKey(
-  'raw', decodeAesKey, { name: 'AES-CTR' }, false, ['decrypt']
+  'raw', decodeAesKey, { name: 'AES-GCM' }, false, ['decrypt']
 );
 const decryptedPadded = await crypto.subtle.decrypt(
-  { name: 'AES-CTR', counter: new Uint8Array(16), length: 128 },
-  cryptoKey, slotEncrypted
+  { name: 'AES-GCM', iv: new Uint8Array(12), tagLength: 128 },
+  cryptoKey, slotEncrypted // ciphertext ∥ 16-byte tag
 );
-// → 6487 bytes of padded gzip data` },
+// Throws (caught -> BAD_AES_TAG, fatal) if the tag doesn't verify.
+// → 14663 bytes of padded zlib data` },
     { lib: 'fflate', func: 'inflateSync + NUL split',
-      code: `// Manual gzip header parse + fflate inflate
-const FLG = decryptedPadded[3];
-let offset = 10;
-if (FLG & 0x04) { /* skip extra field */ }
-if (FLG & 0x08) { /* skip original filename */ }
-if (FLG & 0x10) { /* skip comment */ }
-const decompressed = inflateSync(decryptedPadded.subarray(offset));
+      code: `// Validate the 2-byte zlib header, then raw-DEFLATE inflate
+// (see src/lib/cm/crypto.ts → zlibDecompress())
+const cmf = decryptedPadded[0], flg = decryptedPadded[1];
+// cmf&0x0f===8 (deflate), (cmf<<8|flg)%31===0, FDICT unset
+const decompressed = inflateSync(decryptedPadded.subarray(2));
+// inflateSync stops at the DEFLATE end-of-stream marker on its own,
+// ignoring the Adler32 trailer + zero padding that follow it.
 // Then split by NUL bytes into TYPE/NAME/CONTENTS triples
 const text = new TextDecoder().decode(decompressed);
 const parts = text.split('\\0');` },
@@ -139,8 +139,8 @@ const parts = text.split('\\0');` },
         <p>The slot carries a 64-byte Schnorr signature over the full content. Verify against the writer's x-only pubkey (embedded in the slot).</p>
         <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">schnorr.verify(sig, taggedHash(TAG, content), writer_xonly)</div>
         {#if result}
-          <div class="font-mono {result.sigValid ? 'text-[#3fb950]' : 'text-[#f85149]'} bg-[#0d1117] rounded px-2 py-1">
-            sig {result.sigValid ? '✓ VALID — authorship proven' : '✗ INVALID — record tampered'}
+          <div class="font-mono {!result.fatal ? 'text-[#3fb950]' : 'text-[#f85149]'} bg-[#0d1117] rounded px-2 py-1">
+            sig {!result.fatal ? '✓ VALID — authorship proven' : '✗ INVALID — record tampered (parsing stops here per spec)'}
           </div>
         {/if}
       </div>
@@ -156,9 +156,9 @@ const parts = text.split('\\0');` },
         <button onclick={() => toggleCode(2)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(2) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
-        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">SHA256(x_coord(reader_secp_priv × writer_pub))</div>
+        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">SHA256(33-byte compressed(reader_secp_priv × writer_pub))</div>
         <div class="font-mono">writer_pub (from slot): <span class="text-[#58a6ff]">…{readerSecpPubHex.slice(-16)}</span></div>
-        {#if result}
+        {#if result?.debug}
           <div class="font-mono text-[#d29922] bg-[#0d1117] rounded px-2 py-1 break-all">ecdh_secret[:8] = {result.debug.ecdhPrefix}</div>
         {/if}
       </div>
@@ -190,9 +190,9 @@ const parts = text.split('\\0');` },
         <button onclick={() => toggleCode(4)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(4) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
-        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">SHA256(ECDH_secret ∥ ML-KEM_secret)</div>
-        <p>Same hybrid construction as encryption — both secrets are required.</p>
-        {#if result}
+        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">SHA256(ECDH_secret ∥ ML-KEM_secret ∥ GEN)</div>
+        <p>Same hybrid construction as encryption — both secrets and GEN are required.</p>
+        {#if result?.debug}
           <div class="font-mono text-[#3fb950] bg-[#0d1117] rounded px-2 py-1 break-all">aes_key[:8] = {result.debug.aesKeyPrefix}</div>
         {/if}
       </div>
@@ -203,30 +203,30 @@ const parts = text.split('\\0');` },
     <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 {step >= 5 ? '' : 'opacity-40'} transition-opacity" data-testid="cm-dec-step-5">
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 5 ? '✅' : '⏳'}</span>
-        <h4 class="text-sm font-semibold text-[#e6edf3]">Step 5: AES-256-CTR decrypt</h4>
+        <h4 class="text-sm font-semibold text-[#e6edf3]">Step 5: AES-256-GCM decrypt</h4>
         <span class="text-[9px] text-[#d29922] bg-[#d29922]/20 px-1.5 py-0.5 rounded-full">{stepMeta[4].lib}</span>
         <button onclick={() => toggleCode(5)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(5) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
-        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">AES-CTR.decrypt(aes_key, AES_field) → padded gzip stream</div>
-        {#if result}
-          <div class="font-mono text-[#d29922] bg-[#0d1117] rounded px-2 py-1">gzip magic = {result.debug.decryptedGzipMagic} · {result.debug.decryptedLen} bytes</div>
+        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">AES-GCM.decrypt(aes_key, AES_field) → padded zlib stream (tag verified)</div>
+        {#if result?.debug}
+          <div class="font-mono text-[#d29922] bg-[#0d1117] rounded px-2 py-1">zlib header = {result.debug.decryptedZlibHeader} · {result.debug.decryptedLen} bytes</div>
         {/if}
       </div>
       {#if showCode.has(5)}<pre class="text-[9px] font-mono text-[#3fb950] bg-[#0d1117] rounded-md p-2 mt-2 overflow-x-auto whitespace-pre-wrap border border-[#21262d]">{stepMeta[4].code}</pre>{/if}
     </div>
 
-    <!-- Step 6: gunzip + parse -->
+    <!-- Step 6: inflate + parse -->
     <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 {step >= 6 ? '' : 'opacity-40'} transition-opacity" data-testid="cm-dec-step-6">
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 6 ? '✅' : '⏳'}</span>
-        <h4 class="text-sm font-semibold text-[#e6edf3]">Step 6: Gunzip + parse TYPE\0NAME\0CONTENTS\0 triples</h4>
+        <h4 class="text-sm font-semibold text-[#e6edf3]">Step 6: Inflate zlib + parse TYPE\0NAME\0CONTENTS\0 triples</h4>
         <span class="text-[9px] text-[#d29922] bg-[#d29922]/20 px-1.5 py-0.5 rounded-full">{stepMeta[5].lib}</span>
         <button onclick={() => toggleCode(6)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(6) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
-        <p>Inflate the DEFLATE stream (ignoring zero padding), then split on NUL bytes into TYPE\0NAME\0CONTENTS\0 triples.</p>
-        {#if result}
+        <p>Inflate the zlib stream (ignoring trailing padding), then split on NUL bytes into TYPE\0NAME\0CONTENTS\0 triples.</p>
+        {#if result?.debug}
           <div class="font-mono text-[#3fb950] bg-[#0d1117] rounded px-2 py-1">decompressed {result.debug.decompressedLen} bytes</div>
         {/if}
       </div>
@@ -234,11 +234,12 @@ const parts = text.split('\\0');` },
     </div>
   </div>
 
-  {#if result}
+  {#if result && !result.fatal}
     <div class="bg-[#1c2128] border border-[#30363d] rounded-lg p-4 space-y-2" data-testid="cm-dec-result">
       <p class="text-xs text-[#8b949e] leading-relaxed">
         <strong class="text-[#3fb950]">✅ Record decrypted.</strong> The reader recovered the original plaintext using
-        <em>their</em> private keys. Anyone else would get nonsense at step 2/3 (wrong ECDH/ML-KEM secrets).
+        <em>their</em> private keys. Anyone else's derivation would fail the AES-GCM tag check outright at step 5
+        (wrong ECDH/ML-KEM/GEN inputs) rather than silently producing garbage.
       </p>
       <div class="bg-[#0d1117] border border-[#21262d] rounded-md p-2 space-y-1" data-testid="cm-dec-fields">
         <div class="text-[10px] text-[#484f58] font-mono mb-1">decoded fields:</div>

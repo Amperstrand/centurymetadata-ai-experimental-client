@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { encodeRecord, decodeSlot, deriveCmKeys, toHex, checkSignature } from '../lib/centurymetadata';
+  import { encodeRecord, decodeSlot, deriveCmKeys, toHex, checkSignature, CMDataErrorCode } from '../lib/centurymetadata';
   import type { CmKeys } from '../lib/centurymetadata';
 
   let { keys }: { keys: CmKeys } = $props();
@@ -21,15 +21,15 @@
     try {
       const enc = await encodeRecord(keys, [['text', 'untampered', 'original payload']], 0n);
       // Flip ONE byte in the SIG region (offset 0..63). Content bytes are untouched,
-      // so decodeSlot completes cleanly; the signature no longer verifies.
+      // so the signature is the only thing that no longer verifies.
       const tampered = enc.slot.slice();
       tampered[5] ^= 0x01;
       const decoded = await decodeSlot(keys, tampered);
-      tamperSig = decoded.sigValid ? 'valid (unexpected!)' : 'INVALID';
-      tamperDecrypt =
-        decoded.triples.length > 0
-          ? `still decoded — content untouched (${decoded.triples[0][1]}: ${decoded.triples[0][2]})`
-          : 'no fields';
+      const sigFailed = decoded.errors.some((e) => e.code === CMDataErrorCode.BAD_SIGNATURE);
+      tamperSig = sigFailed ? 'INVALID' : 'valid (unexpected!)';
+      tamperDecrypt = decoded.fatal
+        ? `parsing stopped -- MUST fail parsing on a bad signature (spec Reader Requirements). ${decoded.triples.length} records recovered.`
+        : `still decoded ${decoded.triples.length} record(s) (unexpected!)`;
     } catch (e) {
       tamperSig = 'error';
       tamperDecrypt = e instanceof Error ? e.message : String(e);
@@ -86,7 +86,9 @@
       Encode a real record, flip <strong class="text-[#e6edf3]">one bit in the signature</strong>, then decode.
       The BIP-340 signature covers the entire content (writer ∥ reader ∥ gen ∥ ML-KEM_CT ∥ AES), so <strong class="text-[#e6edf3]">any</strong>
       alteration is detected. We tamper the signature specifically so the demo stays readable — tampering the content
-      would <em>also</em> invalidate the signature <em>and</em> additionally corrupt the encrypted payload.
+      would <em>also</em> invalidate the signature <em>and</em> additionally corrupt the encrypted payload. Per spec, a
+      reader <strong class="text-[#e6edf3]">MUST fail parsing</strong> on a bad signature — decoding stops immediately,
+      before any decryption is even attempted, and recovers zero records.
     </p>
     <button
       onclick={runTamper}

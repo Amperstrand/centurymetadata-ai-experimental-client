@@ -1,11 +1,18 @@
 # greatspectations spec-quote drift config for centurymetadata-ai-experimental-client
 #
 # Tool: https://github.com/rustyrussell/greatspectations
-# Spec: https://github.com/rustyrussell/centurymetadata (README.md, single-file)
+# Spec: https://github.com/rustyrussell/centurymetadata -- two files, as of the
+# 2026-07 SPECIFICATION.md rewrite that split the wire-format prose out of
+# README.md into its own document:
+#   SPECIFICATION.md  → wire format, crypto pipeline, per-record-type rules
+#                        (almost all quotes: constants, encode/decode logic)
+#   README.md         → project overview, HTTP API, and the short "accepted
+#                        Bitcoin record types" bullet list (a few quotes only)
 #
 # Comment marker syntax in TypeScript source:
-#   // CM: <verbatim spec quote from README.md>
+#   // CM: <verbatim spec quote from SPECIFICATION.md>
 #   // CM/File Format: <quote restricted to sections whose header contains "File Format">
+#   // CMREADME: <verbatim spec quote from README.md>
 #
 # Setup (one-time, local):
 #   git clone --depth=1 https://github.com/rustyrussell/centurymetadata.git spec
@@ -21,5 +28,10 @@
 
 [sources.CM]
 format = "markdown"
-file = "spec/README.md"
+file = "spec/SPECIFICATION.md"
 comment_marker = "CM"
+
+[sources.CMREADME]
+format = "markdown"
+file = "spec/README.md"
+comment_marker = "CMREADME"

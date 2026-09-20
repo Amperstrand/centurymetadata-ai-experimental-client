@@ -4,7 +4,7 @@ import { waitForApp, toSection, base } from '../helpers';
 const BASE = base();
 
 test.describe('CenturyMetadata — bundle + playground (network)', () => {
-  // All tests in this suite require the test API for bundle fetch (8 MB, ~60s) or
+  // All tests in this suite require the test API for bundle fetch (16 MB, ~60s) or
   // playground write (preamble mismatch due to deployment lag). See docs/SPEC-DRIFT.md.
   test('CM-60: bundle grid renders exactly 1024 cells', async ({ page }) => {
     await toSection(page, 'bundle');

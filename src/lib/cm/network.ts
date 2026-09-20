@@ -1,5 +1,5 @@
 import { PROXY_BASE, SLOT_SIZE, READER_ID_OFFSET, AUTHTOKEN } from './constants.js';
-import { toHex } from './utils.js';
+import { toHex, bytesLEToInt64 } from './utils.js';
 import { SlotPublic, NetworkStats } from './types.js';
 
 // Upstream provenance: README.md "Entry Creation: POST /api/v1/authorize/{READER_ID}/{WRITER}/{AUTHTOKEN}".
@@ -19,7 +19,7 @@ export async function authorizeWriter(
 }
 
 // Upstream provenance: README.md "Entry Update: POST /api/v1/update".
-// Content-Type: application/x-centurymetadata; body = preamble + 8192-byte slot = 9243 bytes.
+// Content-Type: application/x-centurymetadata; body = preamble + 16384-byte slot = 17571 bytes.
 export async function uploadRecord(
   fullRecord: Uint8Array,
 ): Promise<{ ok: boolean; status: number; text: string }> {
@@ -34,7 +34,7 @@ export async function uploadRecord(
 
 // Upstream provenance: README.md "Retrieving Entries: POST /api/v1/fetchxor/{DIRECTORY}" +
 // centurytool.py:13-52 fetch_slot(). Sets a single-bit bitmask at bundle.index to fetch that
-// bundle (1024 × 8192 = 8 MB), then scans all slots for matching reader_id at offset 97.
+// bundle (1024 × 16384 = 16 MB), then scans all slots for matching reader_id at offset 97.
 export async function fetchSlots(readerId: Uint8Array): Promise<Uint8Array[]> {
   const listRes = await fetch(`${PROXY_BASE}/listbundles`);
   const bundles = await listRes.json() as { directory: string; index: number }[];
@@ -123,7 +123,7 @@ export async function fetchSlotPrivate(
     // fetchxor bitmask selects BUNDLES, not slots-within-bundle). The reader_id is
     // recovered by client-side scan after the bundle is XORed back out of the two
     // server responses. Hiding WHICH slot a client wants is not expressible in the
-    // upstream API; clients always scan the whole 8 MB bundle for their reader_id.
+    // upstream API; clients always scan the whole 16 MB bundle for their reader_id.
     // (Previously this used `globalBit = bundle.index * 1024 + slotIdx` then took
     // `% 1024`, which collapsed to slotIdx and only worked by accident when the
     // directory contained a single bundle at index 0.)
@@ -162,12 +162,8 @@ export function getMaxGeneration(
       if (slotWriterPub[j] !== writerPubKey[j]) { match = false; break; }
     }
     if (match) {
-      const slotGen = slot.subarray(129, 137);
-      const gen =
-        (BigInt(slotGen[0]) << 56n) | (BigInt(slotGen[1]) << 48n) |
-        (BigInt(slotGen[2]) << 40n) | (BigInt(slotGen[3]) << 32n) |
-        (BigInt(slotGen[4]) << 24n) | (BigInt(slotGen[5]) << 16n) |
-        (BigInt(slotGen[6]) << 8n) | BigInt(slotGen[7]);
+      // CM: MUST encode `GEN` as an 8-byte little-endian unsigned integer.
+      const gen = bytesLEToInt64(slot.subarray(129, 137));
       if (gen > maxGen) maxGen = gen;
     }
   }
@@ -182,20 +178,15 @@ export function isSlotEmpty(slot: Uint8Array): boolean {
 }
 
 // Upstream provenance: decode.py:34-49 split_parts() — field offsets for WRITER_PUBKEY[33],
-// READER_ID[32], GEN[8] at byte positions 64, 97, 129 respectively within the 8192-byte slot.
+// READER_ID[32], GEN[8] at byte positions 64, 97, 129 respectively within the 16384-byte slot.
 export function parseSlotPublic(slot: Uint8Array, index: number): SlotPublic {
   if (isSlotEmpty(slot)) {
     return { index, occupied: false, writerPubkey: null, writerXOnly: null, readerId: null, generation: null };
   }
   const writerPub = slot.subarray(64, 97);
   const readerId = slot.subarray(97, 129);
-  const genBytes = slot.subarray(129, 137);
-  const generation = Number(
-    (BigInt(genBytes[0]) << 56n) | (BigInt(genBytes[1]) << 48n) |
-    (BigInt(genBytes[2]) << 40n) | (BigInt(genBytes[3]) << 32n) |
-    (BigInt(genBytes[4]) << 24n) | (BigInt(genBytes[5]) << 16n) |
-    (BigInt(genBytes[6]) << 8n) | BigInt(genBytes[7]),
-  );
+  // CM: MUST encode `GEN` as an 8-byte little-endian unsigned integer.
+  const generation = Number(bytesLEToInt64(slot.subarray(129, 137)));
   return {
     index,
     occupied: true,
@@ -208,7 +199,7 @@ export function parseSlotPublic(slot: Uint8Array, index: number): SlotPublic {
 
 // Upstream provenance: README.md "Listing Bundles: GET /api/v1/listbundles" +
 // "Retrieving Entries: POST /api/v1/fetchxor/{DIRECTORY}". Probes bundle 0 (bitmask[0]=1)
-// of each directory and parses the resulting 1024 × 8192-byte slots for public metadata.
+// of each directory and parses the resulting 1024 × 16384-byte slots for public metadata.
 export async function scanNetwork(): Promise<{ slots: SlotPublic[]; stats: NetworkStats }> {
   const listRes = await fetch(`${PROXY_BASE}/listbundles`);
   const bundles = await listRes.json() as { directory: string; index: number }[];

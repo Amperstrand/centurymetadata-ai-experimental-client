@@ -8,6 +8,38 @@ see [docs/SPEC-DRIFT.md](docs/SPEC-DRIFT.md) for the per-surface drift inventory
 
 ## [Unreleased]
 
+### Changed
+- **Ported to upstream's 2026-07 SPECIFICATION.md rewrite** (AES-256-GCM
+  replaces CTR, zlib replaces gzip, `DATA_LENGTH` 8192 → 16384) — full record
+  is now 17571 bytes (preamble 1187 + slot 16384, was 9243 = 1051 + 8192); AES
+  payload 14679 bytes (14663 zlib plaintext + 16-byte tag, was 6487); bundle
+  16 MB (was 8 MB). See `docs/SPEC-DRIFT.md` for the full inventory.
+  - `AESKEY` is now `SHA256(ECDH_secret ∥ ML-KEM_secret ∥ GEN)` — GEN folds
+    into the key, so a ciphertext from one generation can never decrypt (or
+    be replayed as) another.
+  - `GEN` is encoded little-endian (was big-endian).
+  - `decodeSlot()` returns the full upstream `CMDataError` taxonomy
+    (`errors`, `fatal`, `toSelf`) instead of a bare `sigValid` boolean. A bad
+    signature is now **fatal** — decoding stops before any decryption is
+    attempted and recovers zero records, matching the spec's "MUST fail
+    parsing" requirement (previously, under unauthenticated CTR, a tampered
+    signature was detected but decryption proceeded anyway).
+  - `CmSecurityDemos.svelte`'s tamper demo, `BrowserGotchas.svelte`'s
+    padding-workaround demo, and every affected Playwright assertion were
+    updated to match this stricter, spec-correct behavior.
+- `tools/gen_test_vectors.py`-style local testing: `test/roundtrip.mjs` now
+  honors a `TEST_API` env var so it can target
+  `uv run python ../tools/localserver.py --test-mode` instead of only the
+  public (possibly lagging) `testapi.centurymetadata.org`.
+
+### Fixed
+- **ECDH secret** now hashes the full 33-byte compressed shared point
+  (0x02/0x03 prefix included), matching libsecp256k1's default `ecdh()`
+  convention and SPECIFICATION.md's explicit wording. Previously hashed only
+  the 32-byte x-coordinate — self-consistent for this client's own
+  encrypt→decrypt round-trips, but not interoperable with a spec-compliant
+  peer.
+
 ### Added
 - **Known-keys scheme support** — `KNOWN_WORDS` (130 BIP-39 words from upstream
   `known_words.txt`), `knownWordMnemonic()`, `isKnownWord()`, `isSelfAuthoredWord()`
