@@ -1,7 +1,7 @@
 # Spec drift between this client and upstream centurymetadata
 
-> **Audited**: 2026-07-22 against upstream master (HEAD `7946c80`, 2026-07-14)
-> **Upstream spec canonical source**: https://github.com/rustyrussell/centurymetadata/blob/master/vars
+> **Audited**: 2026-10-30 against upstream master (HEAD `547b543`, 2026-08-05)
+> **Upstream spec canonical source**: https://github.com/rustyrussell/centurymetadata/blob/master/SPECIFICATION.md
 > **Upstream reference implementation**: https://github.com/rustyrussell/centurymetadata/tree/master/python
 
 This document tracks every place where this client intentionally diverges from
@@ -10,31 +10,38 @@ public test API at `https://testapi.centurymetadata.org`.
 
 ## Wire format
 
-The on-the-wire byte layout in `src/lib/centurymetadata.ts` (constants
-`FULL_LENGTH`, `MLKEM_CT_LENGTH`, `DATA_LENGTH`, `PREAMBLE`) is a **byte-exact
-mirror** of upstream `python/centurymetadata/constants.py`. The PREAMBLE
-constant reproduces the upstream text verbatim, including the trailing NUL.
+The on-the-wire byte layout in `src/lib/cm/` (constants `DATA_LENGTH`,
+`MLKEM_CT_LENGTH`, `PLAINTEXT_LENGTH`, `AES_LENGTH`, `PREAMBLE`) is a
+**byte-exact mirror** of upstream `python/centurymetadata/constants.py` at
+master `547b543`. The PREAMBLE constant reproduces the upstream text verbatim,
+including the trailing NUL.
 
-`test/unit-tests.mjs → "PREAMBLE describes TYPE\0NAME\0CONTENTS\0 triples"`
-guards against future drift on the PREAMBLE text.
+`test/unit-tests.mjs → "PREAMBLE describes ZLIB TYPE\0NAME\0CONTENTS\0 triples"`
+and the ECDH_SECRET/AESKEY tests against upstream `test_vectors.json` guard
+against future drift on the wire format.
+
+Upstream `547b543` (synced 2026-10-30, issue #5) changed the format: slot
+8192 → 16384 bytes, record 9243 → 17571 bytes, preamble 1051 → 1187 bytes,
+gzip → zlib, AES-256-CTR → AES-256-GCM (12-byte zero nonce, appended 16-byte
+tag), `AESKEY` now includes the little-endian `GEN`, and `ECDH_SECRET` is
+pinned as SHA256 of the full 33-byte compressed shared point.
 
 ## Test API deployment lag (IMPORTANT)
 
 The public test API at `testapi.centurymetadata.org` is **not** running the
-latest `master` HEAD. As of 2026-07-22 it serves the pre-2026-07-08 spec:
+latest `master` HEAD. As of 2026-10-30 it still serves the pre-2026-07-08 spec:
 
 | Surface | test API behaviour (today) | master HEAD |
 |---|---|---|
-| PREAMBLE wire format | rejects `TYPE\0NAME\0CONTENTS\0` with HTTP 400 "Incorrect preamble"; accepts the old `TITLE\0CONTENTS\0` form | requires `TYPE\0NAME\0CONTENTS\0` (commit `c750c08`, 2026-07-08) |
-| Known-keys enforcement (`TEST_MODE`) | NOT enforced — random unknown mnemonics can `authorize` | code present in `server.py:222-237` and `known_keys.py`, enforced only when `CENTURYMETADATA_TEST_MODE=1` |
+| PREAMBLE wire format | rejects the current 1187-byte preamble with HTTP 400 "Incorrect preamble"; accepts old `TITLE\0CONTENTS\0` / 8192-byte-slot forms | 1187-byte preamble, 16384-byte slots, zlib + AES-256-GCM (`547b543`) |
+| Bundle/slot sizes | 1024 × 8192 = 8 MB responses | 1024 × 16384 = 16 MB |
+| Known-keys enforcement (`TEST_MODE`) | NOT enforced — random unknown mnemonics can `authorize` | code present in `server.py` and `known_keys.py`, enforced only when `CENTURYMETADATA_TEST_MODE=1` |
 | Content validation framework | NOT enforced — any TYPE/CONTENTS pair uploads | code present in `validate.py`, enforced only in `TEST_MODE` |
 
 **Implication for `npm run test:roundtrip`**: the live round-trip test
 **currently fails** with HTTP 400 "Incorrect preamble" because our PREAMBLE
 matches master HEAD, not the lagging deployment. This is correct behaviour:
-the test pins spec conformance with master (both the PREAMBLE text constant
-and the data payload now use the upstream-correct TYPE\0NAME\0CONTENTS\0
-triples form per commit `c750c08`), so it will start passing again the
+the test pins spec conformance with master, so it will start passing again the
 moment the upstream operator redeploys testapi at HEAD.
 
 To verify crypto correctness end-to-end against the lagging deployment, use a
@@ -57,7 +64,7 @@ reader_id `46bdfb26fddb9e2962546ad2436e196feb29c0d873239a0954f1948e52bb44f3`
 **bundles within a directory** (1024 bits, one per bundle), per upstream
 README "Retrieving Entries". There is no upstream primitive for hiding which
 **slot within a bundle** a client wants; clients always scan the recovered
-8 MB bundle for their own `reader_id`.
+16 MB bundle for their own `reader_id`.
 
 ## Accepted Bitcoin record types
 

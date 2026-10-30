@@ -1,9 +1,9 @@
 import { ml_kem1024 } from '@noble/post-quantum/ml-kem.js';
 import { schnorr } from '@noble/curves/secp256k1.js';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { DATA_LENGTH, BIP340_TAG, PREAMBLE } from './constants.js';
-import { concatBytes, taggedHash, int64ToBytesBE, toHex } from './utils.js';
-import { computeEcdh, gzipCompress, aesCtrEncrypt } from './crypto.js';
+import { PLAINTEXT_LENGTH, AES_LENGTH, BIP340_TAG, PREAMBLE } from './constants.js';
+import { concatBytes, taggedHash, int64ToBytesLE, toHex } from './utils.js';
+import { computeEcdh, zlibCompress, aesGcmEncrypt } from './crypto.js';
 import { CmKeys } from './keys.js';
 
 export interface EncodeDebug {
@@ -23,25 +23,29 @@ export interface EncodedRecord {
   debug: EncodeDebug;
 }
 
-// Upstream provenance: encode.py:101-113 encode()
-// Pipeline: compress triples → ECDH(writer_priv, reader_secp_pub) → ML-KEM encapsulate(reader_mlkem_pub)
-// → AESKEY = SHA256(ECDH || ML-KEM) → AES-256-CTR encrypt → sign contentBytes with BIP-340.
-// Output: PREAMBLE || SIG || contentBytes, total 1051 + 8192 = 9243 bytes.
+// Upstream provenance: encode.py:127-152 encode() (master 547b543)
+// Pipeline: compress triples (zlib, pad to 14663) → ECDH(writer_priv, reader_secp_pub)
+// → ML-KEM encapsulate(reader_mlkem_pub) → AESKEY = SHA256(ECDH || ML-KEM || GEN_le)
+// → AES-256-GCM encrypt (12-byte zero nonce, tag appended = 14679 bytes)
+// → GEN little-endian in content → sign contentBytes with BIP-340.
+// Output: PREAMBLE || SIG || contentBytes, total 1187 + 16384 = 17571 bytes.
 export async function encodeRecord(
   keys: CmKeys,
   triples: Array<[string, string, string]>,
   generation: bigint = 0n,
 ): Promise<EncodedRecord> {
+  const genBytes = int64ToBytesLE(generation);
+
   const ecdhSecret = computeEcdh(keys.writerPrivKey, keys.readerSecpPubKey);
 
   const encap = ml_kem1024.encapsulate(keys.mlkemPublicKey);
   const mlkemCt = new Uint8Array(encap.cipherText);
   const mlkemSecret = new Uint8Array(encap.sharedSecret);
 
-  // CM: AESKEY: SHA256(ECDH_SECRET|MLKEM_SECRET)
-  const aesKey = sha256(concatBytes(ecdhSecret, mlkemSecret));
+  // CM: AESKEY: SHA256(ECDH_SECRET|MLKEM_SECRET|GEN)
+  const aesKey = sha256(concatBytes(ecdhSecret, mlkemSecret, genBytes));
 
-  // CM: DATA: gzip([TYPE\0NAME\0CONTENTS\0]+), padded with 0 bytes to 6487\0
+  // CM: DATA: ZLIB([TYPE\0NAME\0CONTENTS\0]+), padded with 0 bytes to 14663
   const encoder = new TextEncoder();
   const parts: Uint8Array[] = [];
   for (const [type, name, contents] of triples) {
@@ -50,13 +54,17 @@ export async function encodeRecord(
                encoder.encode(contents), new Uint8Array([0]));
   }
   const rawData = concatBytes(...parts);
-  const compressed = gzipCompress(rawData);
-  const padded = new Uint8Array(DATA_LENGTH);
+  const compressed = zlibCompress(rawData);
+  if (compressed.length > PLAINTEXT_LENGTH) {
+    throw new Error('Compressed length too great!');
+  }
+  const padded = new Uint8Array(PLAINTEXT_LENGTH);
   padded.set(compressed);
 
-  const encrypted = await aesCtrEncrypt(aesKey, padded);
-
-  const genBytes = int64ToBytesBE(generation);
+  const encrypted = await aesGcmEncrypt(aesKey, padded);
+  if (encrypted.length !== AES_LENGTH) {
+    throw new Error(`AES payload must be ${AES_LENGTH} bytes, got ${encrypted.length}`);
+  }
 
   const contentBytes = concatBytes(
     keys.writerPubKey,
