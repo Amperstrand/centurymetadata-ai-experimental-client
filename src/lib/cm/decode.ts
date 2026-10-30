@@ -1,7 +1,7 @@
 import { ml_kem1024 } from '@noble/post-quantum/ml-kem.js';
 import { schnorr } from '@noble/curves/secp256k1.js';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { MLKEM_CT_LENGTH, AES_LENGTH, BIP340_TAG, DATA_LENGTH } from './constants.js';
+import { MLKEM_CT_LENGTH, AES_LENGTH, BIP340_TAG, DATA_LENGTH, MAX_DECOMPRESSED } from './constants.js';
 import { concatBytes, taggedHash, int64ToBytesLE, bytesToInt64LE, toHex } from './utils.js';
 import { computeEcdh, zlibDecompress, aesGcmDecrypt } from './crypto.js';
 import { CmKeys } from './keys.js';
@@ -24,7 +24,6 @@ export interface DecodedSlot {
   };
 }
 
-const MAX_DECOMPRESSED = 1048576;
 
 function splitOnNul(bytes: Uint8Array): Uint8Array[] {
   const fields: Uint8Array[] = [];
@@ -43,16 +42,15 @@ function parseTriples(uncomp: Uint8Array): [string, string, string][] {
   // consume TYPE\0NAME\0CONTENTS\0 tuples in order; stop (keeping tuples already
   // parsed) when fewer than three NUL-terminated fields remain.
   const decoder = new TextDecoder();
-  let fields = splitOnNul(uncomp);
+  const fields = splitOnNul(uncomp);
   const triples: [string, string, string][] = [];
-  while (!(fields.length === 1 && fields[0].length === 0)) {
-    if (fields.length < 3) break;
+  // indexed walk — slicing the remaining tail per triple is quadratic in slot triple count
+  for (let i = 0; i + 2 < fields.length; i += 3) {
     triples.push([
-      decoder.decode(fields[0]),
-      decoder.decode(fields[1]),
-      decoder.decode(fields[2]),
+      decoder.decode(fields[i]),
+      decoder.decode(fields[i + 1]),
+      decoder.decode(fields[i + 2]),
     ]);
-    fields = fields.slice(3);
   }
   return triples;
 }

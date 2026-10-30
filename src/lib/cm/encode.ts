@@ -1,7 +1,7 @@
 import { ml_kem1024 } from '@noble/post-quantum/ml-kem.js';
 import { schnorr } from '@noble/curves/secp256k1.js';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { PLAINTEXT_LENGTH, AES_LENGTH, BIP340_TAG, PREAMBLE } from './constants.js';
+import { PLAINTEXT_LENGTH, AES_LENGTH, BIP340_TAG, PREAMBLE, MAX_DECOMPRESSED } from './constants.js';
 import { concatBytes, taggedHash, int64ToBytesLE, toHex } from './utils.js';
 import { computeEcdh, zlibCompress, aesGcmEncrypt } from './crypto.js';
 import { CmKeys } from './keys.js';
@@ -54,6 +54,11 @@ export async function encodeRecord(
                encoder.encode(contents), new Uint8Array([0]));
   }
   const rawData = concatBytes(...parts);
+  if (rawData.length > MAX_DECOMPRESSED) {
+    throw new Error(
+      `raw payload ${rawData.length} bytes exceeds the ${MAX_DECOMPRESSED}-byte decompressed limit every decoder enforces (write-side guard: compressible-but-oversize records are unreadable)`
+    );
+  }
   const compressed = zlibCompress(rawData);
   if (compressed.length > PLAINTEXT_LENGTH) {
     throw new Error('Compressed length too great!');

@@ -15,6 +15,9 @@ export const BIP340_TAG = 'centurymetadata v1';
 export const MLKEM_Z_TAG = 'centurymetadata v1 mlkem-z';
 // CM-README: `0x44315441'/N'/0'` through `/3'` (`DATA`),
 export const CM_PURPOSE = 0x44315441;
+
+// Reader- and writer-side cap on the decompressed triples payload (upstream decode.py semantics)
+export const MAX_DECOMPRESSED = 1048576;
 export const AUTHTOKEN = '0'.repeat(64);
 export const PROXY_BASE = '/cm/api/v1';
 export const SLOT_SIZE = DATA_LENGTH;
