@@ -1,11 +1,19 @@
 # greatspectations spec-quote drift config for centurymetadata-ai-experimental-client
 #
 # Tool: https://github.com/rustyrussell/greatspectations
-# Spec: https://github.com/rustyrussell/centurymetadata (README.md, single-file)
+# Spec: https://github.com/rustyrussell/centurymetadata
+#
+# Upstream master 547b543 (2026-08-05) moved the wire-format definition from
+# README.md into SPECIFICATION.md (generated from `vars`). We therefore quote:
+#   - CM         → SPECIFICATION.md (wire format: File Format / Reader / Writer
+#                  Requirements — the same source upstream's own Python code
+#                  quotes as CMDATA-SPEC)
+#   - CM-README  → README.md (user-facing prose: BIP-32 path summary, API sizes)
 #
 # Comment marker syntax in TypeScript source:
-#   // CM: <verbatim spec quote from README.md>
+#   // CM: <verbatim spec quote from SPECIFICATION.md>
 #   // CM/File Format: <quote restricted to sections whose header contains "File Format">
+#   // CM-README: <verbatim quote from README.md>
 #
 # Setup (one-time, local):
 #   git clone --depth=1 https://github.com/rustyrussell/centurymetadata.git spec
@@ -21,5 +29,10 @@
 
 [sources.CM]
 format = "markdown"
-file = "spec/README.md"
+file = "spec/SPECIFICATION.md"
 comment_marker = "CM"
+
+[sources.CM-README]
+format = "markdown"
+file = "spec/README.md"
+comment_marker = "CM-README"

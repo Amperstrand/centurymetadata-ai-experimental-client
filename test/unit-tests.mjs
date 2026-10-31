@@ -4,7 +4,8 @@ import { secp256k1, schnorr } from '@noble/curves/secp256k1.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
-import { gzipSync, inflateSync } from 'fflate';
+import { zlibSync, unzlibSync } from 'fflate';
+import { deflateSync, inflateSync } from 'node:zlib';
 import { createCipheriv, createDecipheriv } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
@@ -30,9 +31,11 @@ const CM_PURPOSE = 0x44315441;
 const MLKEM_Z_TAG = 'centurymetadata v1 mlkem-z';
 const BIP340_TAG = 'centurymetadata v1';
 
+// Upstream get_ecdh_secret = SHA256 of the FULL 33-byte compressed shared point
+// (libsecp256k1 default hashfn). Confirmed by upstream test_vectors.json ECDH_SECRET.
 function computeEcdh(priv, pubCompressed) {
   const pt = secp256k1.Point.fromBytes(pubCompressed).multiply(bytesToNum(priv));
-  return sha256(pt.toBytes(true).subarray(1, 33));
+  return sha256(pt.toBytes(true));
 }
 
 function deriveMlkemKeys(seedD) {
@@ -149,39 +152,47 @@ test('ML-KEM encapsulate → decapsulate roundtrip', () => {
   assert.equal(toHex(encap.sharedSecret), toHex(decapSecret));
 });
 
-test('AES-256-CTR encrypt → decrypt roundtrip', () => {
+test('AES-256-GCM encrypt → decrypt roundtrip (12-byte zero nonce, appended tag)', () => {
   const key = fromHex('aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899');
-  const data = new Uint8Array(6487);
+  const data = new Uint8Array(14663);
   for (let i = 0; i < 100; i++) data[i] = i;
-  const cipher = createCipheriv('aes-256-ctr', Buffer.from(key), Buffer.alloc(16, 0));
-  const enc = cipher.update(Buffer.from(data));
-  const decipher = createDecipheriv('aes-256-ctr', Buffer.from(key), Buffer.alloc(16, 0));
-  const dec = decipher.update(enc);
+  const cipher = createCipheriv('aes-256-gcm', Buffer.from(key), Buffer.alloc(12, 0));
+  const enc = Buffer.concat([cipher.update(Buffer.from(data)), cipher.final(), cipher.getAuthTag()]);
+  assert.equal(enc.length, 14663 + 16, 'ciphertext plus 16-byte GCM tag');
+  const decipher = createDecipheriv('aes-256-gcm', Buffer.from(key), Buffer.alloc(12, 0));
+  decipher.setAuthTag(enc.subarray(enc.length - 16));
+  const dec = Buffer.concat([decipher.update(enc.subarray(0, enc.length - 16)), decipher.final()]);
   assert.equal(toHex(new Uint8Array(dec.slice(0, 100))), toHex(data.slice(0, 100)));
 });
 
-test('gzip OS byte forced to 0xff', () => {
+test('AES-256-GCM tampered ciphertext fails tag verification', () => {
+  const key = fromHex('aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899');
   const data = new TextEncoder().encode('test\0data\0');
-  const gz = gzipSync(data, { level: 9 });
-  gz[4] = 0; gz[5] = 0; gz[6] = 0; gz[7] = 0;
-  gz[9] = 0xff;
-  assert.equal(gz[9], 0xff, 'OS byte should be 0xff');
+  const cipher = createCipheriv('aes-256-gcm', Buffer.from(key), Buffer.alloc(12, 0));
+  const enc = Buffer.concat([cipher.update(Buffer.from(data)), cipher.final(), cipher.getAuthTag()]);
+  enc[0] ^= 0x01;
+  const decipher = createDecipheriv('aes-256-gcm', Buffer.from(key), Buffer.alloc(12, 0));
+  decipher.setAuthTag(enc.subarray(enc.length - 16));
+  assert.throws(() => { decipher.update(enc.subarray(0, enc.length - 16)); decipher.final(); });
 });
 
-test('gzip decompress handles trailing zero padding', () => {
+test('zlib (not gzip): fflate zlibSync stream is valid zlib, readable by node and python zlib', () => {
+  const raw = new TextEncoder().encode('test\0data\0');
+  const z = zlibSync(raw, { level: 9 });
+  assert.equal(z[0], 0x78, 'zlib CMF byte (RFC 1950)');
+  // node's zlib inflates fflate's stream
+  assert.equal(new TextDecoder().decode(inflateSync(Buffer.from(z))), 'test\0data\0');
+  // and fflate inflates node's zlib stream
+  const nz = deflateSync(Buffer.from(raw), { level: 9 });
+  assert.equal(new TextDecoder().decode(unzlibSync(new Uint8Array(nz))), 'test\0data\0');
+});
+
+test('zlib decompress handles trailing zero padding (reader MUST ignore bytes after the stream)', () => {
   const raw = new TextEncoder().encode('hello\0world\0');
-  const gz = gzipSync(raw, { level: 9 });
-  gz[4] = 0; gz[5] = 0; gz[6] = 0; gz[7] = 0;
-  gz[9] = 0xff;
-  const padded = new Uint8Array(200);
-  padded.set(gz);
-  const FLG = padded[3];
-  let off = 10;
-  if (FLG & 0x04) { const xl = padded[off] | (padded[off+1]<<8); off += 2+xl; }
-  if (FLG & 0x08) { while(padded[off]!==0) off++; off++; }
-  if (FLG & 0x10) { while(padded[off]!==0) off++; off++; }
-  if (FLG & 0x02) { off += 2; }
-  const result = inflateSync(padded.subarray(off));
+  const z = zlibSync(raw, { level: 9 });
+  const padded = new Uint8Array(14663);
+  padded.set(z);
+  const result = unzlibSync(padded);
   assert.equal(new TextDecoder().decode(result), 'hello\0world\0');
 });
 
@@ -292,6 +303,62 @@ test('N=1 ML-KEM seed Z = taggedHash(MLKEM_Z_TAG, seed_D)', () => {
     'N=1 READER_MLKEM_SEED_Z must match upstream');
 });
 
+// ECDH_SECRET + AESKEY vectors from upstream test_vectors.json (master 547b543):
+// ECDH_SECRET = SHA256(full 33-byte compressed shared point) — libsecp256k1 default
+// hashfn. AESKEY = SHA256(ECDH_SECRET | MLKEM_SECRET | GEN_le) — GEN was added to the
+// key schedule and switched to little-endian at 547b543.
+test('N=0 ECDH_SECRET = SHA256(compressed shared point) matches upstream vector', () => {
+  const purpose = hd.deriveChild(harden(CM_PURPOSE));
+  const coin = purpose.deriveChild(harden(0));
+  const writerPriv = coin.deriveChild(harden(0)).privateKey;
+  const readerSecpPub = secp256k1.getPublicKey(coin.deriveChild(harden(1)).privateKey, true);
+  const ecdh = computeEcdh(writerPriv, readerSecpPub);
+  assert.equal(toHex(ecdh), '47855ae81cb587b9f70c1a26902aeb373e2ba4fd12790865fa6250a95f14810d',
+    'N=0 ECDH_SECRET must match upstream test_vectors.json (33-byte compressed point form)');
+});
+
+test('N=0 AESKEY = SHA256(ECDH_SECRET|MLKEM_SECRET|GEN_le) matches upstream vector', () => {
+  const ecdh = fromHex('47855ae81cb587b9f70c1a26902aeb373e2ba4fd12790865fa6250a95f14810d');
+  const mlkemSecret = fromHex('41039b52c8eafd286f2440faefabd221b0e62b5cfa68e38b9abf75970697a63d');
+  const genLe = new Uint8Array(8); // GEN = 0, little-endian
+  const aesKey = sha256(concat(ecdh, mlkemSecret, genLe));
+  assert.equal(toHex(aesKey), '509d0ec978cb45b7f82b780afce5958d3310da7bcf8ae9bb9228b052b2913627',
+    'N=0 AESKEY must match upstream (GEN included in the hash, little-endian encoding)');
+});
+
+test('N=1 ECDH_SECRET matches upstream vector', () => {
+  const purpose = hd.deriveChild(harden(CM_PURPOSE));
+  const coin = purpose.deriveChild(harden(1));
+  const writerPriv = coin.deriveChild(harden(0)).privateKey;
+  const readerSecpPub = secp256k1.getPublicKey(coin.deriveChild(harden(1)).privateKey, true);
+  const ecdh = computeEcdh(writerPriv, readerSecpPub);
+  assert.equal(toHex(ecdh), 'b4208e990428b52753c6f0e0a46ee5f07c462934d58df9ffc4e615afdd0d1c5a');
+});
+
+test('N=1 AESKEY = SHA256(ECDH_SECRET|MLKEM_SECRET|GEN_le) matches upstream vector', () => {
+  const ecdh = fromHex('b4208e990428b52753c6f0e0a46ee5f07c462934d58df9ffc4e615afdd0d1c5a');
+  const mlkemSecret = fromHex('6ea4a1401d3544864d61750f9b2388a5837b2f37b8c0bb7052609c363d5d33ca');
+  const aesKey = sha256(concat(ecdh, mlkemSecret, new Uint8Array(8)));
+  assert.equal(toHex(aesKey), '621dd3c1af90c736c6158bf3c2d9a9f14f9e885d3ca0f5ccb27aa581fedcd3da');
+});
+
+test('N=2147483647 ECDH_SECRET and AESKEY match upstream vector 2', () => {
+  const zooSeed = mnemonicToSeedSync('zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo abstract');
+  const zooHd = HDKey.fromMasterSeed(zooSeed);
+  const p = zooHd.deriveChild(harden(CM_PURPOSE));
+  const c = p.deriveChild(harden(2147483647));
+  const writerPriv = c.deriveChild(harden(0)).privateKey;
+  const readerSecpPub = secp256k1.getPublicKey(c.deriveChild(harden(1)).privateKey, true);
+  const ecdh = computeEcdh(writerPriv, readerSecpPub);
+  assert.equal(toHex(ecdh), '102ce83e5e09688e399ccdbe48a5efc2604e07a686a8b1554637239f4d02ee26');
+  const aesKey = sha256(concat(
+    fromHex('102ce83e5e09688e399ccdbe48a5efc2604e07a686a8b1554637239f4d02ee26'),
+    fromHex('174c85264fc6361f5e14f3f35a33a3f61e2a973888b205b056207b4e2e94ea83'),
+    new Uint8Array(8),
+  ));
+  assert.equal(toHex(aesKey), 'b59f2f115edbcaeafea2f242c1dd9de21dad20bdb61a0de46ecfa04deb033459');
+});
+
 // N=2147483647 extreme value (vector 2 from upstream)
 console.log('\n=== N=2147483647 (extreme slot number) ===\n');
 
@@ -371,30 +438,30 @@ test('encode→decode: TYPE\\0NAME\\0CONTENTS\\0 triples survive full pipeline',
   const mlkemKeys = ml_kem1024.keygen(concat(readerMlkemSeedD, mlkemZ));
   const readerId = sha256(concat(readerSecpPub, new Uint8Array(mlkemKeys.publicKey)));
 
-  // --- ENCODE ---
+  // --- ENCODE (master 547b543: zlib + AES-256-GCM + GEN little-endian) ---
+  const genBytes = Buffer.alloc(8); // GEN = 0, little-endian on the wire
   const ecdhSecret = computeEcdh(writerPriv, readerSecpPub);
   const encap = ml_kem1024.encapsulate(new Uint8Array(mlkemKeys.publicKey));
   const mlkemCt = new Uint8Array(encap.cipherText);
   const mlkemSecret = new Uint8Array(encap.sharedSecret);
-  const aesKey = sha256(concat(ecdhSecret, mlkemSecret));
+  const aesKey = sha256(concat(ecdhSecret, mlkemSecret, new Uint8Array(genBytes)));
 
   const enc = new TextEncoder();
   let rawData = new Uint8Array(0);
   for (const [type, name, contents] of INPUT_TRIPLES) {
     rawData = concat(rawData, enc.encode(type), new Uint8Array([0]), enc.encode(name), new Uint8Array([0]), enc.encode(contents), new Uint8Array([0]));
   }
-  const compressed = gzipSync(rawData, { level: 9 });
-  compressed[4] = 0; compressed[5] = 0; compressed[6] = 0; compressed[7] = 0;
-  if (compressed.length > 9) compressed[9] = 0xff;
-  const DATA_LENGTH = 6487;
-  if (compressed.length > DATA_LENGTH) throw new Error('Compressed data too large');
-  const padded = new Uint8Array(DATA_LENGTH);
+  const compressed = zlibSync(rawData, { level: 9 });
+  const PLAINTEXT_LENGTH = 14663;
+  const AES_LENGTH = 14679;
+  if (compressed.length > PLAINTEXT_LENGTH) throw new Error('Compressed data too large');
+  const padded = new Uint8Array(PLAINTEXT_LENGTH);
   padded.set(compressed);
 
-  const cipher = createCipheriv('aes-256-ctr', Buffer.from(aesKey), Buffer.alloc(16, 0));
-  const encrypted = Buffer.concat([cipher.update(Buffer.from(padded)), cipher.final()]);
+  const cipher = createCipheriv('aes-256-gcm', Buffer.from(aesKey), Buffer.alloc(12, 0));
+  const encrypted = Buffer.concat([cipher.update(Buffer.from(padded)), cipher.final(), cipher.getAuthTag()]);
+  assert.equal(encrypted.length, AES_LENGTH, 'ciphertext plus appended 16-byte GCM tag');
 
-  const genBytes = Buffer.alloc(8);
   const content = concat(writerPub, readerId, new Uint8Array(genBytes), mlkemCt, new Uint8Array(encrypted));
   const prehash = taggedHash(BIP340_TAG, content);
   const sig = new Uint8Array(schnorr.sign(prehash, writerPriv));
@@ -408,18 +475,16 @@ test('encode→decode: TYPE\\0NAME\\0CONTENTS\\0 triples survive full pipeline',
 
   const decodeEcdh = computeEcdh(readerSecpPriv, writerPub);
   const decodeMlkemSecret = ml_kem1024.decapsulate(mlkemCt, new Uint8Array(mlkemKeys.secretKey));
-  const decodeAesKey = sha256(concat(decodeEcdh, new Uint8Array(decodeMlkemSecret)));
+  const decodeAesKey = sha256(concat(decodeEcdh, new Uint8Array(decodeMlkemSecret), new Uint8Array(genBytes)));
 
-  const decipher = createDecipheriv('aes-256-ctr', Buffer.from(decodeAesKey), Buffer.alloc(16, 0));
-  const decrypted = Buffer.concat([decipher.update(Buffer.from(encrypted)), decipher.final()]);
+  const decipher = createDecipheriv('aes-256-gcm', Buffer.from(decodeAesKey), Buffer.alloc(12, 0));
+  decipher.setAuthTag(Buffer.from(encrypted.subarray(encrypted.length - 16)));
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(encrypted.subarray(0, encrypted.length - 16))),
+    decipher.final(),
+  ]);
 
-  const FLG = decrypted[3];
-  let off = 10;
-  if (FLG & 0x04) { const xl = decrypted[off] | (decrypted[off + 1] << 8); off += 2 + xl; }
-  if (FLG & 0x08) { while (off < decrypted.length && decrypted[off] !== 0) off++; off++; }
-  if (FLG & 0x10) { while (off < decrypted.length && decrypted[off] !== 0) off++; off++; }
-  if (FLG & 0x02) { off += 2; }
-  const decompressed = inflateSync(decrypted.subarray(off));
+  const decompressed = unzlibSync(new Uint8Array(decrypted));
 
   const text = new TextDecoder().decode(decompressed);
   const parts = text.split('\0');
@@ -502,60 +567,69 @@ test('XOR-PIR recovers target slot from two responses', () => {
   assert.deepEqual(Array.from(recovered), Array.from(targetSlot));
 });
 
-console.log('\n=== SPEC DRIFT: PREAMBLE constant vs upstream constants.py ===\n');
+console.log('\n=== SPEC DRIFT: PREAMBLE constant vs upstream constants.py (master 547b543) ===\n');
 // Refs:
-//   upstream constants.py:1-19 — defines `verheader + preamble` byte-exact
-//   upstream commit c750c08 (2026-07-08) — wire format TITLE\0CONTENTS\0 → TYPE\0NAME\0CONTENTS\0
-//   Our encoder in src/lib/cm/encode.ts already produces triples; the PREAMBLE
-//   text-constant must describe triples too, otherwise uploads fail with
-//   "Incorrect preamble" against any server running current master (decode.deconstruct
-//   does startswith(preamble) verification).
+//   upstream constants.py:4-17 at master 547b543 (2026-08-05) — generated from
+//   SPECIFICATION.md; AES[14679], AES-256-GCM, ZLIB, GEN little-endian, AESKEY binds GEN.
+//   The preamble is 19 + 1168 = 1187 bytes; full record = 1187 + 16384 = 17571.
 
-test('src/lib/cm/constants.ts PREAMBLE describes TYPE\\0NAME\\0CONTENTS\\0 triples', () => {
+test('src/lib/cm/constants.ts mirrors the 547b543 wire constants', () => {
+  const src = readFileSync('src/lib/cm/constants.ts', 'utf8');
+  assert.ok(src.includes('export const DATA_LENGTH = 16384;'), 'DATA_LENGTH must be 16384 (post-preamble slot size)');
+  assert.ok(src.includes('export const PLAINTEXT_LENGTH = 14663;'), 'PLAINTEXT_LENGTH must be 14663');
+  assert.ok(src.includes('export const AES_LENGTH = 14679;'), 'AES_LENGTH must be 14679 (14663 + 16-byte GCM tag)');
+  assert.ok(src.includes('MLKEM_CT[1568]|AES[14679]'), 'PREAMBLE header line must cite AES[14679]');
+});
+
+test('src/lib/cm/constants.ts PREAMBLE describes ZLIB TYPE\\0NAME\\0CONTENTS\\0 triples', () => {
   const src = readFileSync('src/lib/cm/constants.ts', 'utf8');
   // TS source: inside the body literal, NUL bytes are written as \\0 (escaped). Upstream
-  // constants.py line 19 ends with: DATA: gzip([TYPE\0NAME\0CONTENTS\0]+), padded with 0 bytes to 6487\0
-  // Our source must mirror that exactly (5 more bytes than the old TITLE\0CONTENTS\0 form).
+  // constants.py ends with: DATA: ZLIB([TYPE\0NAME\0CONTENTS\0]+), padded with 0 bytes to 14663\0
   assert.ok(
-    src.includes("'DATA: gzip([TYPE\\\\0NAME\\\\0CONTENTS\\\\0]+), padded with 0 bytes to 6487\\0'"),
-    "PREAMBLE body in src/lib/cm/constants.ts must end with: 'DATA: gzip([TYPE\\0NAME\\0CONTENTS\\0]+), padded with 0 bytes to 6487\\0' " +
-    "(mirrors upstream constants.py since commit c750c08 on 2026-07-08). Currently still has the old TITLE\\0CONTENTS\\0 form."
+    src.includes("'DATA: ZLIB([TYPE\\\\0NAME\\\\0CONTENTS\\\\0]+), padded with 0 bytes to 14663\\0'"),
+    "PREAMBLE body in src/lib/cm/constants.ts must end with: 'DATA: ZLIB([TYPE\\0NAME\\0CONTENTS\\0]+), padded with 0 bytes to 14663\\0' " +
+    "(mirrors upstream constants.py at master 547b543: gzip→zlib, 6487→14663)."
+  );
+  assert.ok(
+    src.includes("'AES: AES-256-GCM using AESKEY, 12-byte all-zero nonce, of DATA; 16-byte authentication tag appended\\n' +"),
+    'PREAMBLE must describe AES-256-GCM (upstream switched from AES-256-CTR at 547b543).'
+  );
+  assert.ok(
+    src.includes("'AESKEY: SHA256(ECDH_SECRET|MLKEM_SECRET|GEN)\\n' +"),
+    'PREAMBLE must state AESKEY = SHA256(ECDH_SECRET|MLKEM_SECRET|GEN) (GEN added at 547b543).'
   );
 });
 
-test('test/roundtrip.mjs PREAMBLE describes TYPE\\0NAME\\0CONTENTS\\0 triples', () => {
+test('test/roundtrip.mjs PREAMBLE mirrors the 547b543 constants', () => {
   const src = readFileSync('test/roundtrip.mjs', 'utf8');
   // roundtrip.mjs builds the same PREAMBLE byte-for-byte; it must also mirror upstream.
   assert.ok(
-    src.includes("DATA: gzip([TYPE\\\\0NAME\\\\0CONTENTS\\\\0]+), padded with 0 bytes to 6487\\0'"),
-    "PREAMBLE body in test/roundtrip.mjs must also use TYPE\\0NAME\\0CONTENTS\\0 (mirror upstream constants.py)."
+    src.includes("DATA: ZLIB([TYPE\\\\0NAME\\\\0CONTENTS\\\\0]+), padded with 0 bytes to 14663\\0'"),
+    "PREAMBLE body in test/roundtrip.mjs must use the 547b543 form (ZLIB, 14663)."
   );
 });
 
-test('docs/bridge.md and README.md cite the upstream-correct byte counts (preamble=1051, record=9243)', () => {
-  // Upstream constants.py: len(verheader) + len(body with TYPE/NAME/CONTENTS line) = 19 + 1032 = 1051.
-  // Record total = 1051 (preamble) + 8192 (binary slot) = 9243.
-  // The old 1046/9238 figures correspond to the pre-2026-07-08 TITLE\0CONTENTS\0 preamble.
+test('docs/bridge.md and README.md cite the upstream-correct byte counts (preamble=1187, record=17571)', () => {
+  // Upstream constants.py at 547b543: preamble = 1187 bytes, record = 1187 + 16384 = 17571.
+  // The old 1046/9238 and 1051/9243 figures correspond to pre-547b543 preambles.
   for (const path of ['docs/bridge.md', 'README.md']) {
     const txt = readFileSync(path, 'utf8');
     assert.ok(
-      !txt.includes('PREAMBLE[1046]') && !txt.includes('9238 bytes'),
-      `${path} still references the old preamble size 1046 / record size 9238. ` +
-      'Upstream master since commit c750c08 (2026-07-08) uses 1051 / 9243.'
+      !txt.includes('PREAMBLE[1046]') && !txt.includes('9238 bytes') &&
+      !txt.includes('PREAMBLE[1051]') && !txt.includes('9243 bytes'),
+      `${path} still references a pre-547b543 preamble/record size (1046/9238 or 1051/9243). ` +
+      'Upstream master since 547b543 uses 1187 / 17571.'
     );
-    // PRESENCE check: docs that cite wire-level sizes must state the upstream-correct
-    // figures, not just omit the old ones. Verified against constants.py at master HEAD.
     if (txt.includes('PREAMBLE[')) {
       assert.ok(
-        txt.includes('PREAMBLE[1051]'),
-        `${path} mentions PREAMBLE[...] but does not cite the upstream-correct size 1051. ` +
-        'Either add PREAMBLE[1051] or remove the bracketed annotation.'
+        txt.includes('PREAMBLE[1187]'),
+        `${path} mentions PREAMBLE[...] but does not cite the upstream-correct size 1187.`
       );
     }
     if (txt.includes('bytes:')) {
       assert.ok(
-        txt.includes('9243 bytes') || txt.includes('9243 ('),
-        `${path} mentions a byte total but does not cite 9243 (the upstream-correct full-record size).`
+        txt.includes('17571 bytes') || txt.includes('17571 ('),
+        `${path} mentions a byte total but does not cite 17571 (the upstream-correct full-record size).`
       );
     }
   }

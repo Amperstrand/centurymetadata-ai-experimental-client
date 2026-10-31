@@ -50,11 +50,11 @@ const sigValid = schnorr.verify(sig, prehash, writerXOnly);
     { lib: '@noble/curves', func: 'secp256k1 ECDH (reader side)',
       code: `// src/lib/centurymetadata.ts → computeEcdh()
 // Reader uses THEIR private key with the WRITER's public key
-const sharedPoint = secp256k1.Point
-  .fromBytes(slotWriterPub)
-  .multiply(bytesToNumberBE(keys.readerSecpPrivKey));
-const x = sharedPoint.toBytes(true).subarray(1, 33);
-return sha256(x);
+const shared = secp256k1.getSharedSecret(
+  keys.readerSecpPrivKey, slotWriterPub
+);
+return sha256(shared);
+// SHA256 over the full 33-byte compressed point
 // → same secret as encryption step 2 (ECDH is symmetric)` },
     { lib: '@noble/post-quantum', func: 'ml_kem1024.decapsulate(ct, priv)',
       code: `// @noble/post-quantum — FIPS 203 ML-KEM-1024
@@ -64,34 +64,32 @@ const decodeMlkemSecret = ml_kem1024.decapsulate(
 );
 // → same 32-byte secret as encryption step 3
 // (decapsulation is deterministic given the private key)` },
-    { lib: '@noble/hashes', func: 'sha256(ecdh ∥ mlkem)',
-      code: `// Same hybrid derivation as encryption — both secrets required
+    { lib: '@noble/hashes', func: 'sha256(ecdh ∥ mlkem ∥ gen)',
+      code: `// Same hybrid derivation as encryption — both secrets + GEN required
 const decodeAesKey = sha256(
-  concatBytes(decodeEcdhSecret, new Uint8Array(decodeMlkemSecret))
+  concatBytes(decodeEcdhSecret, new Uint8Array(decodeMlkemSecret), genBytesLE)
 );
+// GEN is the little-endian generation counter from the slot
 // → must match the AES key from encryption step 4
-// If either secret is wrong, this key is garbage → decryption fails` },
-    { lib: 'Web Crypto API', func: 'crypto.subtle.decrypt(AES-CTR)',
-      code: `// Browser-native AES-256-CTR decryption via Web Crypto
+// If any input is wrong, this key is garbage → GCM tag fails` },
+    { lib: 'Web Crypto API', func: 'crypto.subtle.decrypt(AES-GCM)',
+      code: `// Browser-native AES-256-GCM decryption via Web Crypto
 const cryptoKey = await crypto.subtle.importKey(
-  'raw', decodeAesKey, { name: 'AES-CTR' }, false, ['decrypt']
+  'raw', decodeAesKey, { name: 'AES-GCM' }, false, ['decrypt']
 );
 const decryptedPadded = await crypto.subtle.decrypt(
-  { name: 'AES-CTR', counter: new Uint8Array(16), length: 128 },
+  { name: 'AES-GCM', iv: new Uint8Array(12), tagLength: 128 },
   cryptoKey, slotEncrypted
 );
-// → 6487 bytes of padded gzip data` },
-    { lib: 'fflate', func: 'inflateSync + NUL split',
-      code: `// Manual gzip header parse + fflate inflate
-const FLG = decryptedPadded[3];
-let offset = 10;
-if (FLG & 0x04) { /* skip extra field */ }
-if (FLG & 0x08) { /* skip original filename */ }
-if (FLG & 0x10) { /* skip comment */ }
-const decompressed = inflateSync(decryptedPadded.subarray(offset));
+// Verifies the trailing 16-byte auth tag, then
+// → 14663 bytes of zlib data + zero padding` },
+    { lib: 'fflate', func: 'unzlibSync + NUL split',
+      code: `// fflate unzlibSync stops at the zlib end-of-stream
+// marker and ignores the trailing zero padding
+const decompressed = unzlibSync(decryptedPadded);
 // Then split by NUL bytes into TYPE/NAME/CONTENTS triples
-const text = new TextDecoder().decode(decompressed);
-const parts = text.split('\\0');` },
+const fields = splitOnNul(decompressed);
+// consume fields three at a time (TYPE, NAME, CONTENTS)` },
   ];
 </script>
 
@@ -203,29 +201,29 @@ const parts = text.split('\\0');` },
     <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 {step >= 5 ? '' : 'opacity-40'} transition-opacity" data-testid="cm-dec-step-5">
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 5 ? '✅' : '⏳'}</span>
-        <h4 class="text-sm font-semibold text-[#e6edf3]">Step 5: AES-256-CTR decrypt</h4>
+        <h4 class="text-sm font-semibold text-[#e6edf3]">Step 5: AES-256-GCM decrypt</h4>
         <span class="text-[9px] text-[#d29922] bg-[#d29922]/20 px-1.5 py-0.5 rounded-full">{stepMeta[4].lib}</span>
         <button onclick={() => toggleCode(5)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(5) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
-        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">AES-CTR.decrypt(aes_key, AES_field) → padded gzip stream</div>
+        <div class="font-mono bg-[#0d1117] rounded px-2 py-1 text-[#58a6ff]">AES-GCM.decrypt(aes_key, AES_field) → padded zlib stream</div>
         {#if result}
-          <div class="font-mono text-[#d29922] bg-[#0d1117] rounded px-2 py-1">gzip magic = {result.debug.decryptedGzipMagic} · {result.debug.decryptedLen} bytes</div>
+          <div class="font-mono text-[#d29922] bg-[#0d1117] rounded px-2 py-1">zlib header = {result.debug.decryptedZlibMagic} · {result.debug.decryptedLen} bytes</div>
         {/if}
       </div>
       {#if showCode.has(5)}<pre class="text-[9px] font-mono text-[#3fb950] bg-[#0d1117] rounded-md p-2 mt-2 overflow-x-auto whitespace-pre-wrap border border-[#21262d]">{stepMeta[4].code}</pre>{/if}
     </div>
 
-    <!-- Step 6: gunzip + parse -->
+    <!-- Step 6: unzlib + parse -->
     <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-4 {step >= 6 ? '' : 'opacity-40'} transition-opacity" data-testid="cm-dec-step-6">
       <div class="flex items-center gap-2 mb-2">
         <span class="text-lg">{step >= 6 ? '✅' : '⏳'}</span>
-        <h4 class="text-sm font-semibold text-[#e6edf3]">Step 6: Gunzip + parse TYPE\0NAME\0CONTENTS\0 triples</h4>
+        <h4 class="text-sm font-semibold text-[#e6edf3]">Step 6: Unzlib + parse TYPE\0NAME\0CONTENTS\0 triples</h4>
         <span class="text-[9px] text-[#d29922] bg-[#d29922]/20 px-1.5 py-0.5 rounded-full">{stepMeta[5].lib}</span>
         <button onclick={() => toggleCode(6)} class="text-[9px] text-[#8b949e] hover:text-[#58a6ff] ml-auto">{showCode.has(6) ? '✕ code' : '</> code'}</button>
       </div>
       <div class="text-[11px] text-[#8b949e] space-y-1 ml-7">
-        <p>Inflate the DEFLATE stream (ignoring zero padding), then split on NUL bytes into TYPE\0NAME\0CONTENTS\0 triples.</p>
+        <p>Inflate the zlib stream (ignoring zero padding after the end-of-stream marker), then split on NUL bytes into TYPE\0NAME\0CONTENTS\0 triples.</p>
         {#if result}
           <div class="font-mono text-[#3fb950] bg-[#0d1117] rounded px-2 py-1">decompressed {result.debug.decompressedLen} bytes</div>
         {/if}
