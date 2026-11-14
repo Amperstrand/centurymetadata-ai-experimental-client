@@ -67,9 +67,9 @@ test.describe('CenturyMetadata — crypto correctness', () => {
       { id: 'sig', expect: 'Schnorr' },
       { id: 'writer', expect: 'compressed secp256k1' },
       { id: 'reader', expect: 'reader_secp_pubkey' },
-      { id: 'gen', expect: 'big-endian' },
+      { id: 'gen', expect: 'little-endian' },
       { id: 'mlkem', expect: 'ML-KEM-1024' },
-      { id: 'aes', expect: 'AES-256-CTR' },
+      { id: 'aes', expect: 'AES-256-GCM' },
     ];
     for (const c of cases) {
       await page.getByTestId(`cm-field-list-${c.id}`).click();
@@ -149,13 +149,13 @@ test.describe('CenturyMetadata — crypto correctness', () => {
     expect(hexMatches?.length).toBeGreaterThanOrEqual(2);
   });
 
-  test('CM-51: gotcha — gunzip returns 0 bytes (bug), inflate returns the original', async ({ page }) => {
+  test('CM-51: gotcha — GCM tag rejects tampered ciphertext (0 bytes), intact decrypts', async ({ page }) => {
     await toSection(page, 'gotchas');
     await page.getByTestId('cm-gotcha-run').click();
     await expect(page.getByTestId('cm-gotcha-result')).toBeVisible({ timeout: 10000 });
     const txt = await page.getByTestId('cm-gotcha-result').innerText();
-    expect(txt).toContain('0 bytes'); // the bug
-    expect(txt).toMatch(/\d{2,} bytes/); // the fix
+    expect(txt).toContain('0 bytes'); // tampered: GCM authentication failed
+    expect(txt).toMatch(/\d{2,} bytes/); // intact decrypt returns plaintext
     expect(txt).toContain('bitcoin'); // recovered TYPE from triple demo data
   });
 

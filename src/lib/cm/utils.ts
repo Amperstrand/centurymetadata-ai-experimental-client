@@ -16,15 +16,24 @@ export function taggedHash(tag: string, msg: Uint8Array): Uint8Array {
   return sha256(concatBytes(tagHash, tagHash, msg));
 }
 
-// Upstream provenance: encode.py:94 gen.to_bytes(8, "big") — big-endian int64 generation counter
-export function int64ToBytesBE(value: bigint): Uint8Array {
+// Upstream provenance: encode.py:88 gen.to_bytes(8, "little") (master 547b543) —
+// little-endian int64 generation counter ("Intel won", SPECIFICATION.md rationale 4).
+export function int64ToBytesLE(value: bigint): Uint8Array {
   const buf = new Uint8Array(8);
   let v = value;
-  for (let i = 7; i >= 0; i--) {
+  for (let i = 0; i < 8; i++) {
     buf[i] = Number(v & 0xffn);
     v >>= 8n;
   }
   return buf;
+}
+
+export function bytesToInt64LE(bytes: Uint8Array): bigint {
+  let result = 0n;
+  for (let i = 7; i >= 0; i--) {
+    result = (result << 8n) | BigInt(bytes[i]);
+  }
+  return result;
 }
 
 export function toHex(bytes: Uint8Array): string {

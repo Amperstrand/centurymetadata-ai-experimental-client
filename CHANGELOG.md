@@ -8,6 +8,34 @@ see [docs/SPEC-DRIFT.md](docs/SPEC-DRIFT.md) for the per-surface drift inventory
 
 ## [Unreleased]
 
+### Changed
+- **Synced to upstream master `547b543` (2026-08-05)** — wire-format overhaul
+  mirroring `python/centurymetadata/{constants,encode,decode}.py` and
+  `SPECIFICATION.md`:
+  - Slot size 8192 → **16384** bytes; full record 9243 → **17571** bytes
+    (preamble 1051 → **1187** bytes; new `AES[14679]` field text).
+  - DATA compression **gzip → zlib** (RFC 1950, level 9, no FDICT); the gzip
+    OS-byte workaround is obsolete. Plaintext budget 6487 → **14663** bytes.
+  - AES field **AES-256-CTR → AES-256-GCM** (12-byte all-zero nonce,
+    16-byte authentication tag appended; `AES_LENGTH` = 14679).
+  - `AESKEY` now binds the generation: `SHA256(ECDH_SECRET|ML-KEM_SECRET|GEN)`
+    with **GEN encoded little-endian** on the wire.
+  - **Fixed `computeEcdh`** to hash the full 33-byte compressed shared point
+    (libsecp256k1 default hashfn) instead of only the x-coordinate — verified
+    against upstream `test_vectors.json` `ECDH_SECRET`/`AESKEY` values; closes
+    the interop failure flagged in `docs/audits/results/CM-WIRE-FORMAT-result.md`.
+  - `decodeSlot` verifies the GCM tag (returns `aesTagValid: false` on tamper),
+  ignores bytes after the zlib stream, enforces the 1 MiB decompressed-size cap,
+  and stops triple parsing when fewer than three NUL-terminated fields remain
+  (upstream `decode.py` semantics).
+  - `specquotes.toml` now quotes `SPECIFICATION.md` (source `CM`) and
+    `README.md` (source `CM-README`); `ACCEPTED_TYPES` still mirrors
+    `validate.py` (unchanged upstream — still accepts `bitcoin miniscript`).
+  - Baselines in `docs/upstream-baseline/` refreshed to master `547b543`.
+  - Educational components and e2e assertions updated to the new sizes/pipeline
+    (BrowserGotchas now demos GCM tamper detection instead of the retired
+    gunzip-padding bug). Closes #5.
+
 ### Added
 - **Known-keys scheme support** — `KNOWN_WORDS` (130 BIP-39 words from upstream
   `known_words.txt`), `knownWordMnemonic()`, `isKnownWord()`, `isSelfAuthoredWord()`

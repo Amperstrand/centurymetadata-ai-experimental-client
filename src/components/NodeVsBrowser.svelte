@@ -1,14 +1,14 @@
 <script lang="ts">
   // Static side-by-side: the same ECDH + AES step in the Node reference vs the browser lib.
   const ecdhRows = [
-    { label: 'shared point', node: 'secp256k1.Point.fromBytes(pub).multiply(priv)', browser: 'secp256k1.Point.fromBytes(pub).multiply(bytesToNumberBE(priv))' },
-    { label: 'x-coordinate', node: 'sharedPoint.x', browser: 'sharedPoint.toBytes(true).subarray(1, 33)' },
-    { label: 'hash to secret', node: 'crypto.hash_sha256(x)  // libsecp default', browser: 'sha256(x)' },
+    { label: 'shared point', node: 'secp256k1.Point.fromBytes(pub).multiply(priv)', browser: 'secp256k1.getSharedSecret(priv, pub)' },
+    { label: 'compressed point', node: 'sharedPoint.serialize()', browser: 'sharedPoint (33 bytes, 0x02|0x03 ‖ x ‖ y)' },
+    { label: 'hash to secret', node: 'crypto.hash_sha256(compressed)  // libsecp default', browser: 'sha256(sharedPoint)' },
   ];
   const aesRows = [
-    { label: 'create cipher', node: "createCipheriv('aes-256-ctr', key, iv)", browser: "crypto.subtle.importKey('raw', key, {name:'AES-CTR'}, false, ['encrypt'])" },
-    { label: 'encrypt', node: 'cipher.update(data) + cipher.final()', browser: "crypto.subtle.encrypt({name:'AES-CTR', counter:iv, length:128}, key, data)" },
-    { label: 'output', node: 'Buffer', browser: 'Uint8Array (via new Uint8Array(await …))' },
+    { label: 'create cipher', node: "createCipheriv('aes-256-gcm', key, iv12)", browser: "crypto.subtle.importKey('raw', key, {name:'AES-GCM'}, false, ['encrypt'])" },
+    { label: 'encrypt', node: 'cipher.update(data) + cipher.final() + cipher.getAuthTag()', browser: "crypto.subtle.encrypt({name:'AES-GCM', iv:zeros12, tagLength:128}, key, data)" },
+    { label: 'output', node: 'ciphertext ‖ tag (Buffer)', browser: 'Uint8Array ciphertext ‖ tag (encrypt returns them appended)' },
   ];
 </script>
 
@@ -36,7 +36,7 @@
     </div>
 
     <div>
-      <div class="text-[10px] text-[#58a6ff] font-mono mb-1">AES-256-CTR</div>
+      <div class="text-[10px] text-[#58a6ff] font-mono mb-1">AES-256-GCM</div>
       <div class="overflow-x-auto rounded-md border border-[#21262d]">
         <table class="w-full text-[10px] font-mono">
           <thead><tr class="bg-[#0d1117] text-[#484f58]"><th class="text-left p-2">step</th><th class="text-left p-2 text-[#f85149]">Node (test/roundtrip.mjs)</th><th class="text-left p-2 text-[#3fb950]">browser (lib/centurymetadata.ts)</th></tr></thead>

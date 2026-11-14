@@ -57,12 +57,12 @@ test.describe('CenturyMetadata — section content', () => {
     await toSection(page, 'nodevsbrowser');
     const sec = page.locator('#cm-section-nodevsbrowser');
     // ECDH table content
-    await expect(sec).toContainText('sharedPoint.x');
+    await expect(sec).toContainText('getSharedSecret');
     await expect(sec).toContainText('libsecp');
     // AES table content
-    await expect(sec).toContainText("createCipheriv('aes-256-ctr'");
+    await expect(sec).toContainText("createCipheriv('aes-256-gcm'");
     await expect(sec).toContainText("crypto.subtle.importKey('raw'");
-    await expect(sec).toContainText('AES-CTR');
+    await expect(sec).toContainText('AES-GCM');
     // Both tables render as <table>
     const tableCount = await sec.locator('table').count();
     expect(tableCount).toBe(2);
@@ -80,7 +80,7 @@ test.describe('CenturyMetadata — section content', () => {
     await expect(sec).toContainText('bitmask');
     await expect(sec).toContainText('XORs');
     await expect(sec).toContainText('privacy in numbers', { ignoreCase: true });
-    await expect(sec).toContainText('8 MB');
+    await expect(sec).toContainText('16 MB');
     await expect(sec).toContainText('1024');
   });
 
